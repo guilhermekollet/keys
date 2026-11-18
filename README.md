@@ -117,7 +117,10 @@ See [SECURITY.md](SECURITY.md) for what this protects against, and what it doesn
 ## Requirements
 
 - macOS 26 (Tahoe) or later on a Mac with a Secure Enclave (Apple silicon, or Intel with a T2 chip).
-- To build from source: Swift 6.2 or later — Xcode 26, or the matching Command Line Tools.
+- To build from source: Swift 6.2 or later — Xcode 26 or later, or the matching Command Line Tools.
+  From the macOS 27 SDK on, SwiftUI needs Xcode to compile; with only the Command Line Tools,
+  `build.sh` and `scripts/test.sh` build against the macOS 26 SDK the tools still include (see
+  `scripts/sdk.sh`).
 
 ## Getting started
 
@@ -148,7 +151,7 @@ identity, set `KEYS_SIGNING_IDENTITY`.
 ## Development
 
 ```bash
-swift build                     # debug build
+swift build                     # debug build (only the Command Line Tools: SDKROOT="$(scripts/sdk.sh)" swift build)
 scripts/test.sh                 # tests (works with Xcode or with only the Command Line Tools)
 ./build.sh                      # release build and app bundle
 open build/Keys.app --args --sample   # a made-up vault in memory: no Touch ID, nothing saved

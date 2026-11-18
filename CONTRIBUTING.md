@@ -5,8 +5,10 @@ how to get it merged.
 
 ## Setup
 
-1. macOS 26 or later with Swift 6.2+ (Xcode 26, or the Command Line Tools 26.1+), on a Mac with a
-   Secure Enclave.
+1. macOS 26 or later with Swift 6.2+ (Xcode 26 or later, or the Command Line Tools 26.1+), on a Mac
+   with a Secure Enclave. From the macOS 27 SDK on, SwiftUI needs Xcode to compile; with only the
+   Command Line Tools, `build.sh` and `scripts/test.sh` pick the macOS 26 SDK they still include
+   (see `scripts/sdk.sh`).
 2. Clone the repository and build once: `./build.sh`.
 3. Optional but recommended: `scripts/create-signing-cert.sh`, so the Keychain keeps letting your
    builds read the device key (see the README).
@@ -35,7 +37,8 @@ To work on the interface without touching your own vault, run `open build/Keys.a
   (`PillButtonStyle`, `IconButton`, `Card`, `CapsuleTabs`) rather than new ones, and keep the
   behavior a Mac user expects: menu commands with their usual shortcuts, help tags on icon
   buttons, Delete to remove, confirmation before anything is lost.
-- **Check it builds and the tests pass**: `swift build` and `scripts/test.sh`. For UI changes,
+- **Check it builds and the tests pass**: `swift build` (with only the Command Line Tools,
+  `SDKROOT="$(scripts/sdk.sh)" swift build`) and `scripts/test.sh`. For UI changes,
   include the screens drawn by `build/Keys.app/Contents/MacOS/Keys --snapshot <folder>`.
 - **Security is the feature**: nothing leaves the Mac, and secrets never reach disk unencrypted
   unless the person exports them. Call out any change that touches the vault, the keys or the

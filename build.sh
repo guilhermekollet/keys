@@ -12,6 +12,10 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# With only the Command Line Tools, the macOS 26 SDK (see scripts/sdk.sh).
+source scripts/sdk.sh
+keys_pick_sdk
+
 swift build -c release
 
 APP="${KEYS_OUTPUT_DIR:-build}/Keys.app"
