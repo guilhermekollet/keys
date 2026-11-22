@@ -147,6 +147,14 @@ struct LockScreen: View {
             .keyboardShortcut(.defaultAction)
             .disabled(vault.isUnlocking)
             .padding(.top, 28)
+            if vault.hasUnsavedEdits {
+                Text(localized("As últimas alterações ainda não foram salvas. Deixe o Chaves aberto: elas estão criptografadas na memória e ele continua tentando salvar."))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.muted)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 14)
+            }
         case .unreadable(let reason):
             Text(reason)
                 .font(.system(size: 13.5))

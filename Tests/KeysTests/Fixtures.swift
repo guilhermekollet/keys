@@ -701,7 +701,71 @@ final class FakeMac {
         try FileManager.default.moveItem(at: url(.standard).appendingPathComponent(aside), to: current)
     }
 
+    /// While false, nothing can be written in the default folder, as on a full or read-only disk.
+    func setWritable(_ writable: Bool) throws {
+        try FileManager.default.setAttributes([.posixPermissions: writable ? 0o700 : 0o500], ofItemAtPath: url(.standard).path)
+    }
+
+    /// `count` automatic copies of the vault as it is now, from days of `year`, oldest first.
+    func addCopies(_ count: Int, year: Int) throws {
+        let folder = url(.standard).appendingPathComponent("Backups")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        for day in 1...count {
+            let copy = folder.appendingPathComponent(String(format: "vault-%04d01%02d-120000.keys", year, day))
+            try FileManager.default.copyItem(at: url(.standard).appendingPathComponent("vault.keys"), to: copy)
+        }
+    }
+
+    /// Another copy of the app, or a restore, puts a different vault file in place.
+    func changeVaultOnDisk() throws {
+        let key = P256.KeyAgreement.PrivateKey()
+        try VaultFile.create(Data("other".utf8), for: key).file.write(to: url(.standard).appendingPathComponent("vault.keys"))
+    }
+
+    func vaultBytes() -> [UInt8] {
+        [UInt8]((try? Data(contentsOf: url(.standard).appendingPathComponent("vault.keys"))) ?? Data())
+    }
+
+    /// Opens `name` in the default folder as the vault, the way the README says to.
+    func useAsVault(_ name: String) throws {
+        let current = url(.standard).appendingPathComponent("vault.keys")
+        if FileManager.default.fileExists(atPath: current.path) { try FileManager.default.removeItem(at: current) }
+        try FileManager.default.moveItem(at: url(.standard).appendingPathComponent(name), to: current)
+    }
+
+    func useCopyAsVault(_ name: String) throws {
+        try useAsVault("Backups/\(name)")
+    }
+
+    /// How many of `rounds` races to write the same new vault file had other than one winner,
+    /// and the permissions the files ended with.
+    func racesWithoutOneWinner(rounds: Int) throws -> (bad: Int, permissions: Set<Int>) {
+        let file = try VaultFile.create(Data("new".utf8), for: P256.KeyAgreement.PrivateKey()).file
+        var bad = 0
+        var permissions = Set<Int>()
+        for round in 0..<rounds {
+            let target = url(.standard).appendingPathComponent("race-\(round).keys")
+            let lock = NSLock()
+            var winners = 0
+            DispatchQueue.concurrentPerform(iterations: 8) { _ in
+                guard (try? file.writeNew(to: target)) != nil else { return }
+                lock.lock()
+                winners += 1
+                lock.unlock()
+            }
+            if winners != 1 { bad += 1 }
+            let attributes = try FileManager.default.attributesOfItem(atPath: target.path)
+            permissions.insert((attributes[.posixPermissions] as? NSNumber)?.intValue ?? 0)
+        }
+        return (bad, permissions)
+    }
+
+    func copies() -> [String] {
+        ((try? FileManager.default.contentsOfDirectory(atPath: url(.standard).appendingPathComponent("Backups").path)) ?? []).sorted()
+    }
+
     func dispose() {
+        try? setWritable(true)
         try? FileManager.default.removeItem(at: root)
     }
 }

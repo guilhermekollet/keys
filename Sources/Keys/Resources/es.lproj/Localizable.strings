@@ -303,3 +303,11 @@
 "Igual ao sistema" = "Igual que el sistema";
 "Claro" = "Claro";
 "Escuro" = "Oscuro";
+
+/* Not losing the vault */
+"Já existe um cofre nesta pasta, e nada foi sobrescrito. Destranque-o para continuar." = "Ya hay una bóveda en esta carpeta y no se sobrescribió nada. Ábrela para continuar.";
+"O cofre mudou no disco, então as alterações que não tinham sido salvas ficaram em %@, na mesma pasta." = "La bóveda cambió en el disco, así que los cambios que no se habían guardado quedaron en %@, en la misma carpeta.";
+"As últimas alterações ainda não foram salvas. Deixe o Chaves aberto: elas estão criptografadas na memória e ele continua tentando salvar." = "Tus últimos cambios todavía no se han guardado. Deja Keys abierto: están cifrados en la memoria y sigue intentando guardarlos.";
+"As últimas alterações não foram salvas" = "No se guardaron los últimos cambios";
+"Se você encerrar agora, elas se perdem." = "Si sales ahora, se perderán.";
+"Encerrar sem salvar" = "Salir sin guardar";
