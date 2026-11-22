@@ -9,6 +9,7 @@ struct ProjectItemsView: View {
     /// The access open in the project's side panel.
     @Binding var editing: Credential.ID?
     @Binding var deletingCredential: Credential.ID?
+    let moveCredential: (Credential.ID, Project.ID) -> Void
     @State private var query = ""
 
     var body: some View {
@@ -137,7 +138,14 @@ struct ProjectItemsView: View {
                     if credentials.isEmpty {
                         EmptyTab(symbol: "key", title: localized("Nenhum acesso"), text: localized("Painéis, bancos de dados, servidores e chaves de API do projeto."))
                     } else {
-                        CredentialsSection(credentials: credentials, selected: editing, open: { editing = $0 }, delete: { deletingCredential = $0 })
+                        CredentialsSection(
+                            credentials: credentials,
+                            selected: editing,
+                            open: { editing = $0 },
+                            destinations: { vault.projects.credentialDestinations(from: project.id) },
+                            move: moveCredential,
+                            delete: { deletingCredential = $0 }
+                        )
                     }
                 }
             }

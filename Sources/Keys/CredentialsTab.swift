@@ -7,6 +7,9 @@ struct CredentialsSection: View {
     /// The access open in the side panel, highlighted in the list.
     let selected: Credential.ID?
     let open: (Credential.ID) -> Void
+    /// The projects an access here can move to.
+    let destinations: () -> [CredentialDestination]
+    let move: (Credential.ID, Project.ID) -> Void
     let delete: (Credential.ID) -> Void
 
     var body: some View {
@@ -17,10 +20,31 @@ struct CredentialsSection: View {
                     CredentialRow(credential: credential, selected: credential.id == selected) { open(credential.id) }
                         .contextMenu {
                             Button(localized("Abrir")) { open(credential.id) }
+                            Menu(localized("Mover para")) {
+                                CredentialDestinations(destinations: destinations) { move(credential.id, $0) }
+                            }
+                            .disabled(credential.isEmpty)
+                            Divider()
                             Button(localized("Apagar acesso…"), role: .destructive) { delete(credential.id) }
                         }
                 }
             }
+        }
+    }
+}
+
+/// The items of a "Move to" menu: projects and subprojects by their path.
+struct CredentialDestinations: View {
+    let destinations: () -> [CredentialDestination]
+    let move: (Project.ID) -> Void
+
+    var body: some View {
+        let available = destinations()
+        if available.isEmpty {
+            Text(localized("Nenhum outro projeto"))
+        }
+        ForEach(available) { destination in
+            Button(destination.path.isEmpty ? localized("Sem nome") : destination.path) { move(destination.id) }
         }
     }
 }
@@ -89,6 +113,8 @@ struct CredentialIcon: View {
 struct CredentialEditor: View {
     @Binding var credential: Credential
     let close: () -> Void
+    let destinations: () -> [CredentialDestination]
+    let move: (Project.ID) -> Void
     let delete: () -> Void
     @State private var revealed = false
     @State private var generator = PasswordGenerator()
@@ -180,6 +206,7 @@ struct CredentialEditor: View {
 
             HStack {
                 IconButton(symbol: "trash", help: localized("Apagar acesso…"), color: .red.opacity(0.85), action: delete)
+                moveMenu
                 Spacer()
                 Button(localized("Pronto"), action: close)
                     .buttonStyle(PillButtonStyle())
@@ -192,6 +219,27 @@ struct CredentialEditor: View {
         .foregroundStyle(Theme.paper)
         .tint(Theme.accent)
         .onChange(of: credential.password) { credential.updatedAt = Date() }
+    }
+
+    private var moveMenu: some View {
+        Menu {
+            CredentialDestinations(destinations: destinations, move: move)
+        } label: {
+            Image(systemName: "folder")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Theme.paper.opacity(0.7))
+                .frame(width: 24, height: 24)
+                .contentShape(Circle())
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        // An access with nothing in it isn't kept, so there's nothing to move.
+        .disabled(credential.isEmpty)
+        .opacity(credential.isEmpty ? 0.35 : 1)
+        .help(localized("Mover para outro projeto"))
+        .accessibilityLabel(localized("Mover para outro projeto"))
     }
 
     private var header: some View {

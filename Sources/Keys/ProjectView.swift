@@ -19,6 +19,7 @@ enum ProjectSection: String, CaseIterable, Identifiable {
 /// variables and links, filtered and searchable.
 struct ProjectView: View {
     @Binding var project: Project
+    @EnvironmentObject private var vault: Vault
     /// The access open in the panel on the right.
     @State private var editing: Credential.ID?
     @State private var deletingCredential: Credential.ID?
@@ -31,7 +32,7 @@ struct ProjectView: View {
             ContextCard(project: $project)
                 .padding(.horizontal, 20)
                 .padding(.top, 16)
-            ProjectItemsView(project: $project, editing: $editing, deletingCredential: $deletingCredential)
+            ProjectItemsView(project: $project, editing: $editing, deletingCredential: $deletingCredential, moveCredential: move)
                 // Whatever the list holds, it fits the room left and never makes the window's
                 // content taller than the window (which pushed the sidebar and the header off
                 // screen once). It scrolls instead.
@@ -42,7 +43,12 @@ struct ProjectView: View {
         // another access can be opened with a click while this one is showing.
         .overlay(alignment: .trailing) {
             if let id = editing, let credential = credentialBinding(id) {
-                CredentialEditor(credential: credential, close: close) {
+                CredentialEditor(
+                    credential: credential,
+                    close: close,
+                    destinations: { vault.projects.credentialDestinations(from: project.id) },
+                    move: { move(id, to: $0) }
+                ) {
                     deletingCredential = id
                 }
                 .id(id)
@@ -74,6 +80,11 @@ struct ProjectView: View {
 
     private func close() {
         editing = nil
+    }
+
+    private func move(_ id: Credential.ID, to destination: Project.ID) {
+        if editing == id { editing = nil }
+        vault.moveCredential(id, from: project.id, to: destination)
     }
 
     private func dropIfEmpty(_ id: Credential.ID?) {

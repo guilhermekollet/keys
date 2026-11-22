@@ -55,6 +55,8 @@ pointing down. The name follows the Mac's language, in the app and in Finder, th
   button to add any of them. The context stays pinned above it and folds to a line.
 - **Accesses** open with a click in a panel floating on the right, where they're edited as you
   type, with a password generator and an icon of your choice (or the one for its kind).
+- **Move an access** to any other project or subproject in use, from its right-click menu or the
+  folder button in its panel. Merging a backup keeps it only where it was last moved to.
 - **Context**: free Markdown text for how to run it, how it's deployed, where things are, the
   decisions taken, gotchas and who to ask. An outline gets you started.
 - The project's folder on your Mac, opened in Finder or Terminal with one click.

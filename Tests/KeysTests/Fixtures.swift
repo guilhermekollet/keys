@@ -298,6 +298,109 @@ func oldProjectHasNoParent() -> Bool {
     return contents.projects.first?.parentID == nil
 }
 
+// MARK: Moving accesses
+
+private func minute(_ value: Int) -> Date { Date(timeIntervalSinceReferenceDate: Double(value) * 60) }
+
+/// The tree above, unchanged since minute 0, with two accesses in "Loja": "Banco" and "Painel".
+private func treeWithAccesses() -> [Project] {
+    tree().map { project in
+        var project = project
+        project.updatedAt = minute(0)
+        if project.name == "Loja" {
+            project.credentials = [
+                Credential(kind: .database, title: "Banco", url: "postgres://db", username: "admin", password: "old", notes: "note", symbol: "star", updatedAt: minute(0)),
+                Credential(title: "Painel", updatedAt: minute(0)),
+            ]
+        }
+        return project
+    }
+}
+
+extension [Project] {
+    fileprivate func at(_ name: String) -> Int { firstIndex { $0.name == name }! }
+
+    fileprivate func moving(_ title: String, to destination: String, minute value: Int) -> [Project] {
+        let source = first { $0.credentials.contains { $0.title == title } }!
+        let id = source.credentials.first { $0.title == title }!.id
+        return movingCredential(id, from: source.id, to: self[at(destination)].id, at: minute(value))
+    }
+
+    /// Every access as "Project/Title", sorted.
+    fileprivate var places: [String] {
+        flatMap { project in project.credentials.map { "\(project.name)/\($0.title)" } }.sorted()
+    }
+}
+
+/// Moves "Banco" from "Loja" to `destination`.
+func movingAccess(to destination: String) -> (places: [String], intact: Bool, stamped: [String]) {
+    let before = treeWithAccesses()
+    let after = before.moving("Banco", to: destination, minute: 10)
+    var expected = before[before.at("Loja")].credentials[0]
+    expected.movedAt = minute(10)
+    let intact = after.flatMap(\.credentials).contains(expected)
+    return (after.places, intact, after.filter { $0.updatedAt == minute(10) }.map(\.name).sorted())
+}
+
+/// Moves that can't happen: to the same project, an archived one, one that's gone, or of an access that's gone.
+func impossibleMovesChangeNothing() -> [Bool] {
+    var projects = treeWithAccesses()
+    projects[projects.at("Site")].archivedAt = minute(1)
+    let shop = projects[projects.at("Loja")]
+    let id = shop.credentials[0].id
+    let attempts = [
+        (id, shop.id), (id, projects[projects.at("Site")].id), (id, UUID()), (UUID(), projects[projects.at("API")].id),
+    ]
+    return attempts.map { projects.movingCredential($0.0, from: shop.id, to: $0.1, at: minute(10)) == projects }
+}
+
+/// The paths offered to an access in `source`, with `archived` out of use.
+func accessDestinations(from source: String, archived: String) -> [String] {
+    var projects = treeWithAccesses()
+    projects[projects.at(archived)].archivedAt = minute(1)
+    return projects.credentialDestinations(from: projects[projects.at(source)].id).map(\.path)
+}
+
+/// A move survives saving and opening the vault again.
+func moveSurvivesSaving() -> Bool {
+    let contents = VaultContents(projects: treeWithAccesses().moving("Banco", to: "Checkout", minute: 10))
+    guard let data = try? Vault.encode(contents) else { return false }
+    return (try? Vault.decode(data)) == contents
+}
+
+/// What happened on the other Mac since the two vaults were the same.
+enum OtherMac: CaseIterable {
+    case nothing, editedSource, editedDestination, changedPassword, movedLater
+}
+
+/// "Banco" moves from "Loja" to "API" here at minute 10, and the vaults are merged, either the
+/// other Mac's into this one or (`reversed`) this one's into it.
+func mergingAfterMove(_ other: OtherMac, reversed: Bool) -> (places: [String], password: String, repeatUpdates: Int) {
+    let base = treeWithAccesses()
+    let here = base.moving("Banco", to: "API", minute: 10)
+    var there = base
+    let shop = there.at("Loja"), api = there.at("API")
+    switch other {
+    case .nothing: break
+    case .editedSource:
+        there[shop].summary = "edited"
+        there[shop].updatedAt = minute(20)
+    case .editedDestination:
+        there[api].summary = "edited"
+        there[api].updatedAt = minute(20)
+    case .changedPassword:
+        there[shop].credentials[0].password = "new"
+        there[shop].credentials[0].updatedAt = minute(5)
+        there[shop].updatedAt = minute(5)
+    case .movedLater:
+        there = there.moving("Banco", to: "Site", minute: 20)
+    }
+    let (mine, theirs) = reversed ? (there, here) : (here, there)
+    let merged = VaultContents(projects: mine).merging(VaultContents(projects: theirs)).contents
+    let password = merged.projects.flatMap(\.credentials).first { $0.title == "Banco" }?.password ?? "lost"
+    return (merged.projects.places, password, merged.merging(VaultContents(projects: theirs)).updated)
+}
+
 // MARK: The app's name by language
 
 /// The interface language a Mac set to `preferences` gets.
