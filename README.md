@@ -191,6 +191,7 @@ Sources/Keys/
   CredentialsTab.swift     Accesses, their editor and the password generator
   MenuBarPanel.swift       Quick search from the menu bar
   SettingsView.swift       Settings
+  TitlebarAccessory.swift  Places the sidebar button beside the window's controls
   Theme.swift              Colors, the key mark and the shared controls (pills, cards, tabs)
   SampleVault.swift        The made-up vault behind --sample
   Snapshot.swift           --snapshot: draws every screen to PNG
