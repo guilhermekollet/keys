@@ -43,6 +43,9 @@ branch you build has `DeviceKey.customFolderService` first.
 - **Never lose a key**: a device key's handle is the only way into its vault. Keychain items are
   only ever added, never updated or deleted, and a failed read is never taken for a missing item.
   Tests use `FakeMac` (in `Fixtures.swift`), never the real Keychain or vault folder.
+- **Never save blindly**: edits reach the disk through `Vault.store`, which holds the folder's lock
+  and leaves a vault that changed alone. Setting `projects` while unlocked counts as an edit, so
+  load them before changing the state.
 - **Keep the look**: Keys shares Mara AI's design. Use the colors and controls in `Theme.swift`
   (`PillButtonStyle`, `IconButton`, `Card`, `CapsuleTabs`) rather than new ones, and keep the
   behavior a Mac user expects: menu commands with their usual shortcuts, help tags on icon

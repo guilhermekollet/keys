@@ -111,9 +111,23 @@ Machine copy the file, but not the key in the Secure Enclave.
 
 Keys still locks. The edits that didn't reach the disk stay in memory, encrypted like the file, and
 it keeps trying to save them, so leave it open while you free space or restore access to the
-folder; quitting warns first. They don't survive a crash or a power cut. If `vault.keys` changed
-in the meantime it is left alone and they are saved next to it as `vault-unsaved-<date>.keys`: to
-see them, quit Keys, move `vault.keys` elsewhere and give that file its name.
+folder; quitting warns first. They don't survive a crash or a power cut.
+
+### If two copies of Keys have the vault open
+
+Opening and locking don't write anything, only edits do, and an edit never replaces a vault that
+changed since that copy opened it. The copy that saves second leaves `vault.keys` alone, puts its
+version in `vault-unsaved-<date>-<code>.keys` next to it, locks and shows that name. The same
+happens to edits that waited for a save while the file changed. Unlocking again opens the current
+vault.
+
+To bring the two together: quit every copy of Keys, move `vault.keys` elsewhere and give the
+`vault-unsaved-…` file that name. Open it and export a backup. Then quit, put the first file back,
+open it and import the backup. A project edited in both keeps the copy changed last, and one
+deleted in only one comes back, so keep both files until you have checked.
+
+Versions from before this check still replace the file without looking: while one of them is
+installed, don't open the same vault with it and another copy at once.
 
 Creating a vault, or importing one, never writes over a `vault.keys` that is already there.
 

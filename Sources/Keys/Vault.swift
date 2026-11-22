@@ -24,7 +24,11 @@ final class Vault: ObservableObject {
     @Published private(set) var state: State
     @Published var projects: [Project] = [] {
         didSet {
-            if state == .unlocked, projects != oldValue { scheduleSave() }
+            // Only edits: opening sets the projects before the state, so it never writes by itself.
+            if state == .unlocked, projects != oldValue {
+                edited = true
+                scheduleSave()
+            }
         }
     }
     /// The project open in the main window, and the part of it on screen; the menu bar panel
@@ -64,7 +68,11 @@ final class Vault: ObservableObject {
     private var savingAgain: Task<Void, Never>?
     /// Says where edits went when the vault changed before they could be saved. It outlives
     /// `problem`, so unlocking doesn't hide it.
-    private var keptAside: String?
+    @Published private(set) var keptAside: String?
+    private var filesKeptAside: [String] = []
+    /// Whether anything open here still has to be written. Without it nothing is: the file may
+    /// hold another copy's newer work.
+    private var edited = false
     /// Whether `problem` is a failed save, which the next one that works takes back.
     private var saveFailed = false
     private var backedUp = false
@@ -135,10 +143,13 @@ final class Vault: ObservableObject {
         let file: VaultFile, key: SymmetricKey
         do {
             // Looked at first so no key is made for nothing; `writeNew` is what guarantees it.
-            guard !FileManager.default.fileExists(atPath: fileURL.path) else { throw VaultError.vaultExists }
-            let newKey = try deviceKey.create()
-            (file, key) = try VaultFile.create(Self.encode(contents), for: newKey)
-            try file.writeNew(to: fileURL)
+            (file, key) = try VaultFile.withFolderLocked(directory) {
+                guard !FileManager.default.fileExists(atPath: fileURL.path) else { throw VaultError.vaultExists }
+                let newKey = try deviceKey.create()
+                let created = try VaultFile.create(Self.encode(contents), for: newKey)
+                try created.file.writeNew(to: fileURL)
+                return created
+            }
         } catch VaultError.vaultExists {
             // It appeared after launch (another copy of the app, a restore): that one is the vault.
             state = .locked
@@ -148,8 +159,9 @@ final class Vault: ObservableObject {
         self.key = key
         backedUp = true
         unlockedAt = Date()
-        state = .unlocked
         projects = contents.projects
+        edited = false
+        state = .unlocked
         startAutoLock()
     }
 
@@ -201,7 +213,7 @@ final class Vault: ObservableObject {
         saveUnsaved()
         let waiting = unsaved
         // Opening edits over a vault that changed would end up replacing it: they wait instead.
-        if let waiting, changedOnDisk(since: waiting.lastSaved) { return }
+        if let waiting, (try? changedOnDisk(since: waiting.lastSaved)) != false { return }
         do {
             let file = try waiting?.sealed ?? VaultFile.read(from: fileURL)
             // Checked before asking for Touch ID: a vault for another key can't open whatever the person does.
@@ -214,10 +226,11 @@ final class Vault: ObservableObject {
             backedUp = false
             forgetUnsaved()
             unlockedAt = Date()
-            state = .unlocked
             projects = contents.projects
-            // Edits opened from memory aren't on disk yet, even if they leave no project at all.
-            if waiting != nil { scheduleSave() }
+            edited = waiting != nil
+            state = .unlocked
+            // Edits opened from memory aren't on disk yet.
+            if edited { scheduleSave() }
             if let selection, !projects.contains(where: { $0.id == selection }) { self.selection = nil }
             startAutoLock()
         } catch let error as KeychainAccessError {
@@ -245,7 +258,15 @@ final class Vault: ObservableObject {
             unsaved = UnsavedEdits(sealed: sealed, lastSaved: file)
             keepSavingAgain()
         }
+        close()
+    }
+
+    /// Forgets the key and the contents, whatever became of them.
+    private func close() {
+        pendingSave?.cancel()
+        pendingSave = nil
         autoLock.stop()
+        edited = false
         key = nil
         file = nil
         unlockedAt = nil
@@ -261,7 +282,9 @@ final class Vault: ObservableObject {
         let stamp = Self.stamp(Date())
         let destination = directory.appendingPathComponent("vault-unreadable-\(stamp).keys")
         do {
-            try FileManager.default.moveItem(at: fileURL, to: destination)
+            try VaultFile.withFolderLocked(directory) {
+                try FileManager.default.moveItem(at: fileURL, to: destination)
+            }
             state = .new
             problem = nil
         } catch {
@@ -290,19 +313,27 @@ final class Vault: ObservableObject {
         }
     }
 
-    /// Whether what is open is on disk now.
+    /// Saves the edits, if there are any; false when they couldn't be. If the vault changed since
+    /// this copy read it, they are kept in a file of their own and this copy locks: what it shows
+    /// is no longer the vault, and each further save would make another file.
     @discardableResult
     func saveNow() -> Bool {
         pendingSave?.cancel()
         pendingSave = nil
         guard state == .unlocked, !isSample, let key, let file else { return true }
+        // With no edits there is only one thing to write: a vault that is no longer there.
+        guard edited || !FileManager.default.fileExists(atPath: fileURL.path) else { return true }
         do {
-            backUpOnce(recipient: file.recipient)
             let updated = try file.resealing(Self.encode(VaultContents(projects: projects)), with: key)
-            try updated.write(to: fileURL)
-            self.file = updated
-            backedUp = true
-            if saveFailed { problem = keptAside }
+            switch try store(updated, replacing: file) {
+            case .saved:
+                self.file = updated
+                edited = false
+                if saveFailed { problem = keptAside }
+            case .keptAside:
+                problem = keptAside
+                close()
+            }
             saveFailed = false
             return true
         } catch {
@@ -316,20 +347,12 @@ final class Vault: ObservableObject {
         problem = localized("Não foi possível salvar o cofre: \(error.localizedDescription)")
     }
 
-    /// Writes the edits a lock left waiting; true when none are left. A vault that changed
-    /// meanwhile is never replaced: they go to a file of their own beside it.
+    /// Writes the edits a lock left waiting; true when none are left.
     @discardableResult
     func saveUnsaved() -> Bool {
         guard let unsaved else { return true }
         do {
-            if changedOnDisk(since: unsaved.lastSaved) {
-                let name = "vault-unsaved-\(Self.stamp(Date())).keys"
-                try unsaved.sealed.writeNew(to: directory.appendingPathComponent(name))
-                keptAside = localized("O cofre mudou no disco, então as alterações que não tinham sido salvas ficaram em \(name), na mesma pasta.")
-            } else {
-                backUpOnce(recipient: unsaved.lastSaved.recipient)
-                try unsaved.sealed.write(to: fileURL)
-            }
+            _ = try store(unsaved.sealed, replacing: unsaved.lastSaved)
             forgetUnsaved()
             saveFailed = false
             if !keyAccessFailed { problem = keptAside }
@@ -347,9 +370,53 @@ final class Vault: ObservableObject {
         return state != .unlocked && saveUnsaved()
     }
 
-    private func changedOnDisk(since saved: VaultFile) -> Bool {
+    private enum Stored {
+        case saved, keptAside
+    }
+
+    /// The only way edits reach the disk: in place of `last` while the vault is still that, and
+    /// otherwise in a file of their own beside it.
+    private func store(_ sealed: VaultFile, replacing last: VaultFile) throws -> Stored {
+        try VaultFile.withFolderLocked(directory) {
+            if try !changedOnDisk(since: last) {
+                do {
+                    if FileManager.default.fileExists(atPath: fileURL.path) {
+                        backUpOnce(recipient: last.recipient)
+                        try sealed.write(to: fileURL)
+                    } else {
+                        try sealed.writeNew(to: fileURL)
+                    }
+                    backedUp = true
+                    return .saved
+                } catch VaultError.vaultExists {
+                    // It appeared just now, from something that doesn't take the lock.
+                } catch {
+                    // Written, and only then failing (setting permissions, say), is still written:
+                    // taken for a failure, the next save would see its own file as someone else's.
+                    guard (try? VaultFile.read(from: fileURL)) == sealed else { throw error }
+                    backedUp = true
+                    return .saved
+                }
+            }
+            // The code keeps two copies that get here in the same second apart.
+            let name = "vault-unsaved-\(Self.stamp(Date()))-\(UUID().uuidString.prefix(4)).keys"
+            try sealed.writeNew(to: directory.appendingPathComponent(name))
+            filesKeptAside.append(name)
+            let names = filesKeptAside.joined(separator: ", ")
+            keptAside = localized("O cofre mudou no disco, então as alterações que não tinham sido salvas ficaram em \(names), na mesma pasta.")
+            return .keptAside
+        }
+    }
+
+    /// Whether the vault is no longer `saved`. A file that can't be read is an error, not a
+    /// change: the save is then tried again.
+    private func changedOnDisk(since saved: VaultFile) throws -> Bool {
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return false }
-        return (try? VaultFile.read(from: fileURL)) != saved
+        do {
+            return try VaultFile.read(from: fileURL) != saved
+        } catch VaultError.notAVault {
+            return true
+        }
     }
 
     private func keepSavingAgain() {

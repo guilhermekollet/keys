@@ -760,6 +760,28 @@ final class FakeMac {
         return (bad, permissions)
     }
 
+    func setVaultReadable(_ readable: Bool) throws {
+        try FileManager.default.setAttributes([.posixPermissions: readable ? 0o600 : 0], ofItemAtPath: url(.standard).appendingPathComponent("vault.keys").path)
+    }
+
+    func removeVault() throws {
+        try FileManager.default.removeItem(at: url(.standard).appendingPathComponent("vault.keys"))
+    }
+
+    /// Makes vault.keys a link to the vault kept in another folder, as a synced vault can be.
+    func keepVaultBehindLink() throws {
+        try FileManager.default.createDirectory(at: url(.custom), withIntermediateDirectories: true)
+        let link = url(.standard).appendingPathComponent("vault.keys")
+        let target = url(.custom).appendingPathComponent("vault.keys")
+        try FileManager.default.moveItem(at: link, to: target)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+    }
+
+    /// Runs `body` while something else holds the default folder's lock.
+    func whileFolderIsLocked(_ body: () -> Void) throws {
+        try VaultFile.withFolderLocked(url(.standard), body)
+    }
+
     func copies() -> [String] {
         ((try? FileManager.default.contentsOfDirectory(atPath: url(.standard).appendingPathComponent("Backups").path)) ?? []).sorted()
     }

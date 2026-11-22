@@ -139,6 +139,28 @@ struct VaultFile: Codable, Equatable {
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
 
+    /// Runs `body` while no other copy of Keys is changing the vault in `folder`, so checking the
+    /// file and then writing it is one step among them. The lock is on the folder itself, with
+    /// nothing to clean up: macOS lets go of it when the process ends. `body` can't take it again.
+    static func withFolderLocked<T>(_ folder: URL, _ body: () throws -> T) throws -> T {
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        let descriptor = Darwin.open(folder.path, O_RDONLY | O_CLOEXEC)
+        guard descriptor >= 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
+        defer { _ = Darwin.close(descriptor) }
+        // Not waiting forever: locking the vault when the Mac sleeps goes through here.
+        let deadline = Date().addingTimeInterval(2)
+        while flock(descriptor, LOCK_EX | LOCK_NB) != 0 {
+            let failure = errno
+            // A disk without locks: the check before each write still stands.
+            if failure == ENOTSUP { break }
+            guard failure == EWOULDBLOCK || failure == EINTR, Date() < deadline else {
+                throw NSError(domain: NSPOSIXErrorDomain, code: Int(failure))
+            }
+            usleep(5_000)
+        }
+        return try body()
+    }
+
     /// Writes a file that must not be there yet, whole or not at all, and throws `vaultExists`
     /// if there is one. FileManager's move won't do: when two race, both can succeed.
     func writeNew(to url: URL) throws {
