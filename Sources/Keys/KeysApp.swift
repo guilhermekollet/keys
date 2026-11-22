@@ -78,7 +78,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        if Vault.shared.prepareToQuit() { return .terminateNow }
+        if Vault.shared.prepareToQuit() {
+            // Where edits were kept aside is known only to this process: said before it ends.
+            if let keptAside = Vault.shared.keptAside {
+                NSApp.activate()
+                let notice = NSAlert()
+                notice.messageText = localized("Suas alterações ficaram em outro arquivo")
+                notice.informativeText = keptAside
+                notice.runModal()
+            }
+            return .terminateNow
+        }
         // The edits live only in this process: quitting is the one way left to lose them.
         NSApp.activate()
         let alert = NSAlert()

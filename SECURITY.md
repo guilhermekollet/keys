@@ -52,7 +52,7 @@ defends against.
 - Secret values appearing in search indexes, Spotlight, or anything sent off the Mac. Keys sends
   nothing anywhere; any network request is a bug.
 - The vault being saved in a way that loses data (a partial write, a backup not taken, edits
-  dropped when a save fails, a new vault written over another, one vault's copies pruned to make
+  dropped when a save fails, a copy of the app saving over another's changes, a new vault written over another, one vault's copies pruned to make
   room for another's).
 - Locking that leaves the key or readable contents in the app: edits waiting to be saved are kept
   only sealed.

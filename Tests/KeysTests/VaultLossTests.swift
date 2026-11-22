@@ -237,6 +237,7 @@ struct VaultLossTests {
         vault.lock()
         try mac.addCopies(Vault.backupCount, year: 2021)
         await vault.unlock()
+        vault.addProject()
         vault.lock()
 
         let copies = mac.copies()
