@@ -89,13 +89,27 @@ pointing down. The name follows the Mac's language, in the app and in Finder, th
 | Projects, variables, accesses | One file, `~/Library/Application Support/Keys/vault.keys`, encrypted with ChaCha20-Poly1305 under a random 256-bit vault key. |
 | The vault key | Inside the same file, sealed for the device key (P256 key agreement + HKDF-SHA256). |
 | The device key | Created inside the Mac's **Secure Enclave**, which never lets it out. Using it requires Touch ID or the Mac's password. |
-| The device key's handle | Your login Keychain. It is encrypted by the Secure Enclave and useless on any other Mac. |
+| The device key's handle | Your login Keychain, in an item of its own for each key. It is encrypted by the Secure Enclave and useless on any other Mac. Keys never replaces or deletes one. |
 | Automatic copies | `Backups/` next to the vault: the vault as it was before each session's first change, the 20 most recent, encrypted the same way (so they also open only on this Mac). |
 | Exported backups | A `.keys-backup` file wherever you save it, sealed with ChaCha20-Poly1305 under a key derived from a password you choose (PBKDF2-HMAC-SHA256, 1,000,000 rounds, random salt). The password is never stored. |
 
 There is no master password, no account and no server: nothing is sent anywhere. The flip side is
 that **the vault itself only opens on the Mac that created it**: Migration Assistant or Time
 Machine copy the file, but not the key in the Secure Enclave.
+
+### If the vault doesn't open
+
+- **Keys couldn't read the key in the Keychain** (it is locked, access was denied, or the app's
+  signature changed): nothing is lost. Unlock the Keychain or allow access, and choose
+  **Tentar de novo** (Try again).
+- **The vault doesn't open here** (its key isn't in the Keychain, or doesn't work on this Mac):
+  import a backup, or start a new vault. Either way the old vault is renamed to
+  `vault-unreadable-<date>.keys` and no key is deleted. If its key comes back, quit Keys, move the
+  new `vault.keys` elsewhere and give the old file that name: it opens again.
+
+Don't delete the Keychain items named "Keys": without its item, a vault and its automatic copies
+can't be opened. Vaults from versions that kept a single item (account `device-key`) keep using
+it, with nothing to migrate.
 
 ### Moving to another Mac
 
@@ -156,8 +170,15 @@ scripts/test.sh                 # tests (works with Xcode or with only the Comma
 ./build.sh                      # release build and app bundle
 open build/Keys.app --args --sample   # a made-up vault in memory: no Touch ID, nothing saved
 build/Keys.app/Contents/MacOS/Keys --snapshot /tmp/keys-screens   # draw every screen to PNG and quit
-KEYS_VAULT_DIR=/tmp/keys-dev open build/Keys.app   # a separate vault, to try things safely
+KEYS_VAULT_DIR=/tmp/keys-dev build/Keys.app/Contents/MacOS/Keys   # a separate vault and keys, to try things safely
 ```
+
+`KEYS_VAULT_DIR` keeps that folder's keys under a Keychain service of their own
+(`com.guilhermekollet.keys.custom-folder`), so it can't reach your vault's. Run the executable as
+above: `open` brings an app that is already running to the front, without the variable, and that
+would be your own vault. Builds from before this separation share and replace your vault's key,
+so never use the variable with one. A vault one of them made in such a folder doesn't open in
+this version: export a backup with that build and import it here.
 
 `--sample` is the way to work on the interface without touching your vault, and `--snapshot` draws
 each screen with it (main window per filter, lock screens, settings, menu bar panel, access editor)
@@ -179,7 +200,7 @@ Sources/Keys/
   VaultFile.swift          The file format and its encryption
   VaultBackup.swift        Password-protected backups, for moving to another Mac, and merging them
   BackupViews.swift        Exporting and importing backups
-  DeviceKey.swift          The Secure Enclave key and its handle in the Keychain
+  DeviceKey.swift          The Secure Enclave keys and their add-only handles in the Keychain
   Models.swift             Projects, environments, variables, accesses, search
   DotEnv.swift             Reading and writing .env files
   PasswordGenerator.swift  Random passwords

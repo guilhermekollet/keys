@@ -15,8 +15,15 @@ how to get it merged.
 4. Run the tests: `scripts/test.sh`.
 
 To work on the interface without touching your own vault, run `open build/Keys.app --args --sample`
-(a made-up vault in memory, nothing saved) or point the app at another folder with
-`KEYS_VAULT_DIR`.
+(a made-up vault in memory, nothing saved) or give the app another folder, which also gets keys of
+its own in the Keychain:
+
+```bash
+KEYS_VAULT_DIR=/tmp/keys-dev build/Keys.app/Contents/MacOS/Keys
+```
+
+Builds from before custom folders had keys of their own replace your vault's, so check that the
+branch you build has `DeviceKey.customFolderService` first.
 
 ## Making a change
 
@@ -33,6 +40,9 @@ To work on the interface without touching your own vault, run `open build/Keys.a
 - **Never break old vaults**: a new field needs a default in its `init(from:)` (see `Models.swift`),
   and a change to the file format needs a new `VaultFile.currentVersion` and a way to read the old
   one.
+- **Never lose a key**: a device key's handle is the only way into its vault. Keychain items are
+  only ever added, never updated or deleted, and a failed read is never taken for a missing item.
+  Tests use `FakeMac` (in `Fixtures.swift`), never the real Keychain or vault folder.
 - **Keep the look**: Keys shares Mara AI's design. Use the colors and controls in `Theme.swift`
   (`PillButtonStyle`, `IconButton`, `Card`, `CapsuleTabs`) rather than new ones, and keep the
   behavior a Mac user expects: menu commands with their usual shortcuts, help tags on icon

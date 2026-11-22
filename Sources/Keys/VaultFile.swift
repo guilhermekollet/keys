@@ -146,6 +146,7 @@ enum VaultError: LocalizedError, Equatable {
     case otherDeviceKey
     case damaged
     case missingDeviceKey
+    case unusableDeviceKey
     case noSecureEnclave
 
     var errorDescription: String? {
@@ -159,7 +160,9 @@ enum VaultError: LocalizedError, Equatable {
         case .damaged:
             localized("O arquivo do cofre está danificado ou foi alterado.")
         case .missingDeviceKey:
-            localized("A chave deste Mac não está no Keychain, então o cofre não pode ser aberto aqui.")
+            localized("A chave deste cofre não está no Keychain deste Mac, então ele não pode ser aberto aqui. Se ele veio de outro Mac, importe um backup feito lá.")
+        case .unusableDeviceKey:
+            localized("A chave deste cofre está no Keychain, mas o Secure Enclave deste Mac não a aceita. Se o cofre veio de outro Mac, importe um backup feito lá.")
         case .noSecureEnclave:
             localized("Este Mac não tem Secure Enclave, que o Chaves usa para guardar a chave do cofre.")
         }

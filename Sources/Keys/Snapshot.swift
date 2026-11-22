@@ -44,6 +44,10 @@ enum Snapshot {
         await draw(RootView().environmentObject(Vault(previewing: .new)), size: CGSize(width: 860, height: 620), to: folder, name: "lock-new")
         await draw(RootView().environmentObject(Vault(previewing: .locked)), size: CGSize(width: 860, height: 620), to: folder, name: "lock-locked")
         await draw(
+            RootView().environmentObject(Vault(previewing: .locked, accessError: KeychainAccessError(status: errSecInteractionNotAllowed))),
+            size: CGSize(width: 860, height: 620), to: folder, name: "lock-keychain"
+        )
+        await draw(
             RootView().environmentObject(Vault(previewing: .unreadable(VaultError.otherDeviceKey.localizedDescription))),
             size: CGSize(width: 860, height: 620), to: folder, name: "lock-unreadable"
         )
