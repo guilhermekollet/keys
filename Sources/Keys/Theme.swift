@@ -344,18 +344,15 @@ extension TextFieldStyle where Self == FieldStyle {
     static func code(trailingRoom: CGFloat) -> FieldStyle { FieldStyle(monospaced: true, trailingRoom: trailingRoom) }
 }
 
-/// The sidebar button's icon: a rounded square with a short bar along its left side.
+/// The sidebar button's icon: two lines, the lower one shorter.
 struct SidebarIcon: View {
     var body: some View {
-        RoundedRectangle(cornerRadius: 4.5, style: .continuous)
-            .strokeBorder(lineWidth: 1.5)
-            .frame(width: 17, height: 15)
-            .overlay(alignment: .leading) {
-                Capsule()
-                    .frame(width: 1.8, height: 6.5)
-                    .padding(.leading, 4.5)
-            }
-            .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: 4) {
+            Capsule().frame(width: 16, height: 1.7)
+            Capsule().frame(width: 10, height: 1.7)
+        }
+        .frame(width: 17, height: 15)
+        .accessibilityHidden(true)
     }
 }
 
@@ -367,7 +364,7 @@ struct SidebarButtonLabel: View {
     var body: some View {
         SidebarIcon()
             .foregroundStyle(Theme.paper.opacity(hovering ? 0.95 : 0.7))
-            .frame(width: 30, height: 26)
+            .frame(width: 26, height: 26)
             .background(Theme.paper.opacity(hovering ? 0.1 : 0), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
             .onHover { hovering = $0 }

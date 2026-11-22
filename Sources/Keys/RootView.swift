@@ -10,6 +10,9 @@ struct RootView: View {
                 MainView()
             } else {
                 LockScreen()
+                    // A toolbar with nothing in it: without one macOS draws the short title bar,
+                    // and the window's controls would move each time the vault locks or opens.
+                    .toolbar { ToolbarSpacer(.flexible) }
             }
         }
         .animation(.easeInOut(duration: 0.2), value: vault.state)
@@ -194,6 +197,8 @@ struct MainView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Theme.ink)
         }
+        // Beside the window's controls, outside the sidebar, so it is still there to bring it back.
+        .background(LeadingTitlebarAccessory { sidebarButton })
         .searchable(text: $query, placement: .sidebar, prompt: localized("Buscar em tudo"))
         // When the list folds away with the keyboard, AppKit hands the keyboard to the next field,
         // the project's name, with its text selected: one stray key would replace the name. So
@@ -367,15 +372,8 @@ struct MainView: View {
         // the focus has its text selected, so the first keystroke would replace the name.
         .defaultFocus($listFocused, true)
         .onAppear { DispatchQueue.main.async { listFocused = true } }
-        // The sidebar's own button, where the system's would be, in place of it. macOS keeps it
-        // in the title bar while the sidebar is hidden, so it also brings the sidebar back.
+        // The app's own button takes the system's place (see `body`).
         .toolbar(removing: .sidebarToggle)
-        .toolbar {
-            ToolbarItem(placement: .automatic) { sidebarButton }
-                // No glass capsule behind it: macOS 26 gives every toolbar item one, which made
-                // this button look like a circle. It highlights on its own instead.
-                .sharedBackgroundVisibility(.hidden)
-        }
         .onChange(of: vault.selection, initial: true) { reveal(vault.selection) }
         // Archiving the open project takes it out of the sidebar: the project above it, if that one
         // is still in use, opens instead.
