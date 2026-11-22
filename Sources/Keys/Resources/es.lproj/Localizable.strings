@@ -17,7 +17,10 @@
 "O arquivo do cofre não é um cofre do Chaves." = "El archivo de la bóveda no es una bóveda de Keys.";
 "Este cofre foi salvo por uma versão mais nova do Chaves. Atualize o app para abri-lo." = "Esta bóveda se guardó con una versión más nueva de Keys. Actualiza la app para abrirla.";
 "O arquivo do cofre está danificado ou foi alterado." = "El archivo de la bóveda está dañado o fue modificado.";
-"A chave deste Mac não está no Keychain, então o cofre não pode ser aberto aqui." = "La clave de este Mac no está en el Llavero, así que la bóveda no se puede abrir aquí.";
+"A chave deste cofre não está no Keychain deste Mac, então ele não pode ser aberto aqui. Se ele veio de outro Mac, importe um backup feito lá." = "La clave de esta bóveda no está en el Llavero de este Mac, así que no se puede abrir aquí. Si vino de otro Mac, importa una copia de seguridad hecha allí.";
+"A chave deste cofre está no Keychain, mas o Secure Enclave deste Mac não a aceita. Se o cofre veio de outro Mac, importe um backup feito lá." = "La clave de esta bóveda está en el Llavero, pero el Secure Enclave de este Mac no la acepta. Si la bóveda vino de otro Mac, importa una copia de seguridad hecha allí.";
+"O Chaves não conseguiu ler a chave do cofre no Keychain. Nada foi apagado: desbloqueie o Keychain ou permita o acesso e tente de novo. (%@)" = "Keys no pudo leer la clave de la bóveda en el Llavero. No se borró nada: desbloquea el Llavero o permite el acceso y vuelve a intentarlo. (%@)";
+"Tentar de novo" = "Volver a intentar";
 "Este Mac não tem Secure Enclave, que o Chaves usa para guardar a chave do cofre." = "Este Mac no tiene Secure Enclave, que Keys usa para guardar la clave de la bóveda.";
 
 /* Main window */

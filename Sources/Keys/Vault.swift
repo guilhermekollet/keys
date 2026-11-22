@@ -6,7 +6,11 @@ import SwiftUI
 /// sealed and written back to disk shortly after it is made.
 @MainActor
 final class Vault: ObservableObject {
-    static let shared = Vault()
+    static let shared = Vault(
+        sample: CommandLine.arguments.contains("--sample") || CommandLine.arguments.contains("--snapshot"),
+        directory: directory,
+        deviceKey: systemDeviceKey(for: directory)
+    )
 
     enum State: Equatable {
         /// There is no vault on this Mac yet.
@@ -30,6 +34,9 @@ final class Vault: ObservableObject {
     @Published private(set) var isUnlocking = false
     /// When Touch ID last opened the vault; it locks again `Preferences.unlockMinutes` later.
     @Published private(set) var unlockedAt: Date?
+    /// Whether the last attempt to unlock failed at the Keychain: the key may well be fine, so
+    /// the lock screen offers to try again, never a new vault.
+    @Published private(set) var keyAccessFailed = false
     /// The last thing that went wrong, shown until the next attempt.
     @Published var problem: String?
     /// The lock screen asks for Touch ID by itself once per launch; after a lock it waits for a click.
@@ -38,40 +45,57 @@ final class Vault: ObservableObject {
     /// Nothing is saved and it never locks.
     let isSample: Bool
 
+    private let directory: URL
+    private let deviceKey: DeviceKey
     private var key: SymmetricKey?
     private var file: VaultFile?
     private var pendingSave: Task<Void, Never>?
     private var backedUp = false
     private let autoLock = AutoLock()
 
-    /// `KEYS_VAULT_DIR` points the app at another folder, to try things without touching your vault.
+    /// `KEYS_VAULT_DIR` points the app at another folder, to try things without touching your
+    /// vault. Its keys are kept apart too (see DeviceKey).
     static var directory: URL {
         if let custom = ProcessInfo.processInfo.environment["KEYS_VAULT_DIR"], !custom.isEmpty {
             return URL(fileURLWithPath: (custom as NSString).expandingTildeInPath)
         }
-        return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Keys")
+        return defaultDirectory
     }
 
-    static var fileURL: URL { directory.appendingPathComponent("vault.keys") }
-    static var backupsURL: URL { directory.appendingPathComponent("Backups") }
+    static var defaultDirectory: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Keys")
+    }
+
+    private static func systemDeviceKey(for directory: URL) -> DeviceKey {
+        DeviceKey(directory: directory, defaultDirectory: defaultDirectory, items: SystemKeychainItems(), enclave: SystemEnclave())
+    }
+
+    var fileURL: URL { directory.appendingPathComponent("vault.keys") }
+    var backupsURL: URL { directory.appendingPathComponent("Backups") }
     /// How many earlier copies of the vault are kept.
     static let backupCount = 20
 
-    init(sample: Bool = CommandLine.arguments.contains("--sample") || CommandLine.arguments.contains("--snapshot")) {
+    init(sample: Bool, directory: URL, deviceKey: DeviceKey) {
         isSample = sample
+        self.directory = directory
+        self.deviceKey = deviceKey
         if sample {
             state = .unlocked
             unlockedAt = Date()
             projects = SampleVault.projects
             selection = projects.first { !$0.credentials.isEmpty && $0.parentID != nil }?.id
         } else {
-            state = FileManager.default.fileExists(atPath: Self.fileURL.path) ? .locked : .new
+            state = FileManager.default.fileExists(atPath: directory.appendingPathComponent("vault.keys").path) ? .locked : .new
         }
     }
 
     /// A vault in memory that only shows `state`, for drawing the lock screen (see Snapshot).
-    init(previewing state: State) {
+    init(previewing state: State, accessError: KeychainAccessError? = nil) {
         isSample = true
+        directory = Self.directory
+        deviceKey = Self.systemDeviceKey(for: Self.directory)
+        keyAccessFailed = accessError != nil
+        problem = accessError?.localizedDescription
         askedOnLaunch = true
         self.state = state
     }
@@ -91,9 +115,9 @@ final class Vault: ObservableObject {
 
     /// A new device key and a vault for it holding `contents`.
     private func createVault(with contents: VaultContents) throws {
-        let deviceKey = try DeviceKey.create()
-        let (file, key) = try VaultFile.create(Self.encode(contents), for: deviceKey)
-        try file.write(to: Self.fileURL)
+        let newKey = try deviceKey.create()
+        let (file, key) = try VaultFile.create(Self.encode(contents), for: newKey)
+        try file.write(to: fileURL)
         self.file = file
         self.key = key
         backedUp = true
@@ -147,13 +171,13 @@ final class Vault: ObservableObject {
         isUnlocking = true
         defer { isUnlocking = false }
         problem = nil
+        keyAccessFailed = false
         do {
-            let file = try VaultFile.read(from: Self.fileURL)
+            let file = try VaultFile.read(from: fileURL)
             // Checked before asking for Touch ID: a vault for another key can't open whatever the person does.
-            guard let publicKey = DeviceKey.publicKey() else { throw VaultError.missingDeviceKey }
-            guard publicKey == file.recipient else { throw VaultError.otherDeviceKey }
-            let deviceKey = try await DeviceKey.unlock(reason: localized("destrancar o cofre"))
-            let key = try file.unwrapKey(with: deviceKey)
+            let handle = try deviceKey.handle(for: file.recipient)
+            let unlocked = try await deviceKey.unlock(handle, reason: localized("destrancar o cofre"))
+            let key = try file.unwrapKey(with: unlocked)
             let contents = try Self.decode(file.open(with: key))
             self.file = file
             self.key = key
@@ -163,6 +187,9 @@ final class Vault: ObservableObject {
             projects = contents.projects
             if let selection, !projects.contains(where: { $0.id == selection }) { self.selection = nil }
             startAutoLock()
+        } catch let error as KeychainAccessError {
+            keyAccessFailed = true
+            problem = error.localizedDescription
         } catch let error as VaultError where error != .newerVersion {
             state = .unreadable(error.localizedDescription)
         } catch where DeviceKey.isCancellation(error) {
@@ -186,12 +213,12 @@ final class Vault: ObservableObject {
     }
 
     /// Moves an unreadable vault aside (it is kept, renamed, next to where it was) so a new one
-    /// can be created.
+    /// can be created. Its key stays in the Keychain, so renamed back it opens again.
     func setAsideUnreadable() {
         let stamp = Self.stamp(Date())
-        let destination = Self.directory.appendingPathComponent("vault-unreadable-\(stamp).keys")
+        let destination = directory.appendingPathComponent("vault-unreadable-\(stamp).keys")
         do {
-            try FileManager.default.moveItem(at: Self.fileURL, to: destination)
+            try FileManager.default.moveItem(at: fileURL, to: destination)
             state = .new
             problem = nil
         } catch {
@@ -227,7 +254,7 @@ final class Vault: ObservableObject {
         do {
             backUpOnce()
             let updated = try file.resealing(Self.encode(VaultContents(projects: projects)), with: key)
-            try updated.write(to: Self.fileURL)
+            try updated.write(to: fileURL)
             self.file = updated
         } catch {
             problem = localized("Não foi possível salvar o cofre: \(error.localizedDescription)")
@@ -241,12 +268,12 @@ final class Vault: ObservableObject {
         backedUp = true
         let manager = FileManager.default
         do {
-            try manager.createDirectory(at: Self.backupsURL, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-            let copy = Self.backupsURL.appendingPathComponent("vault-\(Self.stamp(Date())).keys")
+            try manager.createDirectory(at: backupsURL, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            let copy = backupsURL.appendingPathComponent("vault-\(Self.stamp(Date())).keys")
             if !manager.fileExists(atPath: copy.path) {
-                try manager.copyItem(at: Self.fileURL, to: copy)
+                try manager.copyItem(at: fileURL, to: copy)
             }
-            let copies = try manager.contentsOfDirectory(at: Self.backupsURL, includingPropertiesForKeys: nil)
+            let copies = try manager.contentsOfDirectory(at: backupsURL, includingPropertiesForKeys: nil)
                 .filter { $0.pathExtension == "keys" }
                 .sorted { $0.lastPathComponent > $1.lastPathComponent }
             for old in copies.dropFirst(Self.backupCount) {

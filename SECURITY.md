@@ -52,5 +52,7 @@ defends against.
 - Secret values appearing in search indexes, Spotlight, or anything sent off the Mac. Keys sends
   nothing anywhere; any network request is a bug.
 - The vault being saved in a way that loses data (a partial write, a backup not taken).
+- A device key's handle being replaced or deleted, reached from another vault folder, or taken for
+  missing when the Keychain only refused to read it.
 - An import that loses data: merging must never delete a project, and a vault this Mac can't
   open must be set aside, not overwritten.

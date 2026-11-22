@@ -134,7 +134,11 @@ struct LockScreen: View {
             Button {
                 Task { await vault.unlock() }
             } label: {
-                Label(localized("Destrancar com Touch ID"), systemImage: "touchid")
+                if vault.keyAccessFailed {
+                    Label(localized("Tentar de novo"), systemImage: "arrow.clockwise")
+                } else {
+                    Label(localized("Destrancar com Touch ID"), systemImage: "touchid")
+                }
             }
             .buttonStyle(PillButtonStyle(large: true))
             .keyboardShortcut(.defaultAction)
@@ -153,7 +157,7 @@ struct LockScreen: View {
                 .padding(.top, 28)
             HStack(spacing: 10) {
                 Button(localized("Mostrar no Finder")) {
-                    NSWorkspace.shared.activateFileViewerSelecting([Vault.fileURL])
+                    NSWorkspace.shared.activateFileViewerSelecting([vault.fileURL])
                 }
                 Button(localized("Começar um cofre novo…")) { confirmingNewVault = true }
             }

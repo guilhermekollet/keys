@@ -121,19 +121,19 @@ private struct GeneralSettings: View {
 
             Card(localized("Cofre"), hint: localized("O arquivo e as cópias são criptografados e só abrem neste Mac, com a chave do Secure Enclave. O Chaves guarda as \(Vault.backupCount) cópias mais recentes, uma por sessão.")) {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text((Vault.fileURL.path as NSString).abbreviatingWithTildeInPath)
+                    Text((vault.fileURL.path as NSString).abbreviatingWithTildeInPath)
                         .font(.system(size: 11.5, design: .monospaced))
                         .foregroundStyle(Theme.muted)
                         .textSelection(.enabled)
                     HStack(spacing: 8) {
                         Button(localized("Mostrar no Finder")) {
-                            NSWorkspace.shared.activateFileViewerSelecting([Vault.fileURL])
+                            NSWorkspace.shared.activateFileViewerSelecting([vault.fileURL])
                         }
                         .disabled(vault.isSample)
                         Button(localized("Cópias de segurança")) {
-                            NSWorkspace.shared.open(Vault.backupsURL)
+                            NSWorkspace.shared.open(vault.backupsURL)
                         }
-                        .disabled(!FileManager.default.fileExists(atPath: Vault.backupsURL.path))
+                        .disabled(!FileManager.default.fileExists(atPath: vault.backupsURL.path))
                     }
                     .buttonStyle(PillButtonStyle(prominent: false))
                 }
