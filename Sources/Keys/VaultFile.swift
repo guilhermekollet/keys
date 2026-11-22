@@ -138,6 +138,34 @@ struct VaultFile: Codable, Equatable {
         try encoder.encode(self).write(to: url, options: .atomic)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
+
+    /// Writes a file that must not be there yet, whole or not at all, and throws `vaultExists`
+    /// if there is one. FileManager's move won't do: when two race, both can succeed.
+    func writeNew(to url: URL) throws {
+        let draft = url.deletingLastPathComponent().appendingPathComponent(".\(UUID().uuidString).tmp")
+        defer { try? FileManager.default.removeItem(at: draft) }
+        try write(to: draft)
+        let failure = draft.path.withCString { from in
+            url.path.withCString { to in renamex_np(from, to, UInt32(RENAME_EXCL)) == 0 ? 0 : errno }
+        }
+        switch failure {
+        case 0:
+            return
+        case EEXIST:
+            throw VaultError.vaultExists
+        case ENOTSUP:
+            // A disk without exclusive renames (some network and external ones): still exclusive,
+            // though no longer all at once.
+            do {
+                try Data(contentsOf: draft).write(to: url, options: .withoutOverwriting)
+            } catch CocoaError.fileWriteFileExists {
+                throw VaultError.vaultExists
+            }
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        default:
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(failure))
+        }
+    }
 }
 
 enum VaultError: LocalizedError, Equatable {
@@ -148,6 +176,7 @@ enum VaultError: LocalizedError, Equatable {
     case missingDeviceKey
     case unusableDeviceKey
     case noSecureEnclave
+    case vaultExists
 
     var errorDescription: String? {
         switch self {
@@ -165,6 +194,8 @@ enum VaultError: LocalizedError, Equatable {
             localized("A chave deste cofre está no Keychain, mas o Secure Enclave deste Mac não a aceita. Se o cofre veio de outro Mac, importe um backup feito lá.")
         case .noSecureEnclave:
             localized("Este Mac não tem Secure Enclave, que o Chaves usa para guardar a chave do cofre.")
+        case .vaultExists:
+            localized("Já existe um cofre nesta pasta, e nada foi sobrescrito. Destranque-o para continuar.")
         }
     }
 }

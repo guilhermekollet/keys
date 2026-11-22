@@ -90,7 +90,7 @@ pointing down. The name follows the Mac's language, in the app and in Finder, th
 | The vault key | Inside the same file, sealed for the device key (P256 key agreement + HKDF-SHA256). |
 | The device key | Created inside the Mac's **Secure Enclave**, which never lets it out. Using it requires Touch ID or the Mac's password. |
 | The device key's handle | Your login Keychain, in an item of its own for each key. It is encrypted by the Secure Enclave and useless on any other Mac. Keys never replaces or deletes one. |
-| Automatic copies | `Backups/` next to the vault: the vault as it was before each session's first change, the 20 most recent, encrypted the same way (so they also open only on this Mac). |
+| Automatic copies | `Backups/` next to the vault: the vault as it was before each session's first change, the 20 most recent of each vault, encrypted the same way (so they also open only on this Mac). |
 | Exported backups | A `.keys-backup` file wherever you save it, sealed with ChaCha20-Poly1305 under a key derived from a password you choose (PBKDF2-HMAC-SHA256, 1,000,000 rounds, random salt). The password is never stored. |
 
 There is no master password, no account and no server: nothing is sent anywhere. The flip side is
@@ -106,6 +106,18 @@ Machine copy the file, but not the key in the Secure Enclave.
   import a backup, or start a new vault. Either way the old vault is renamed to
   `vault-unreadable-<date>.keys` and no key is deleted. If its key comes back, quit Keys, move the
   new `vault.keys` elsewhere and give the old file that name: it opens again.
+
+### If the vault can't be saved
+
+Keys still locks. The edits that didn't reach the disk stay in memory, encrypted like the file, and
+it keeps trying to save them, so leave it open while you free space or restore access to the
+folder; quitting warns first. They don't survive a crash or a power cut. If `vault.keys` changed
+in the meantime it is left alone and they are saved next to it as `vault-unsaved-<date>.keys`: to
+see them, quit Keys, move `vault.keys` elsewhere and give that file its name.
+
+Creating a vault, or importing one, never writes over a `vault.keys` that is already there.
+
+### About the Keychain items
 
 Don't delete the Keychain items named "Keys": without its item, a vault and its automatic copies
 can't be opened. Vaults from versions that kept a single item (account `device-key`) keep using

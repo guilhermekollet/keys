@@ -77,8 +77,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         false
     }
 
-    func applicationWillTerminate(_ notification: Notification) {
-        Vault.shared.lock()
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if Vault.shared.prepareToQuit() { return .terminateNow }
+        // The edits live only in this process: quitting is the one way left to lose them.
+        NSApp.activate()
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.messageText = localized("As últimas alterações não foram salvas")
+        alert.informativeText = [Vault.shared.problem, localized("Se você encerrar agora, elas se perdem.")]
+            .compactMap { $0 }.joined(separator: "\n\n")
+        alert.addButton(withTitle: localized("Cancelar"))
+        alert.addButton(withTitle: localized("Encerrar sem salvar")).hasDestructiveAction = true
+        return alert.runModal() == .alertSecondButtonReturn ? .terminateNow : .terminateCancel
     }
 }
 

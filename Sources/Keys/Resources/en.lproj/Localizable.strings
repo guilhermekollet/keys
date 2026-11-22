@@ -303,3 +303,11 @@
 "Igual ao sistema" = "Same as the system";
 "Claro" = "Light";
 "Escuro" = "Dark";
+
+/* Not losing the vault */
+"Já existe um cofre nesta pasta, e nada foi sobrescrito. Destranque-o para continuar." = "There is already a vault in this folder, and nothing was overwritten. Unlock it to continue.";
+"O cofre mudou no disco, então as alterações que não tinham sido salvas ficaram em %@, na mesma pasta." = "The vault changed on disk, so the changes that hadn't been saved are in %@, in the same folder.";
+"As últimas alterações ainda não foram salvas. Deixe o Chaves aberto: elas estão criptografadas na memória e ele continua tentando salvar." = "Your latest changes aren't saved yet. Leave Keys open: they are encrypted in memory and it keeps trying to save them.";
+"As últimas alterações não foram salvas" = "Your latest changes weren't saved";
+"Se você encerrar agora, elas se perdem." = "If you quit now, they'll be lost.";
+"Encerrar sem salvar" = "Quit without saving";
