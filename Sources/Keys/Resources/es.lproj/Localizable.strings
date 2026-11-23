@@ -31,6 +31,9 @@
 "Trancar o cofre (⇧⌘L)" = "Cerrar la bóveda (⇧⌘L)";
 "O cofre de exemplo não tranca" = "La bóveda de ejemplo no se cierra";
 "Buscar em tudo" = "Buscar en todo";
+"Buscar em tudo (⌘F)" = "Buscar en todo (⌘F)";
+"Fechar a busca" = "Cerrar la búsqueda";
+"Fechar a busca (⌘F)" = "Cerrar la búsqueda (⌘F)";
 "Apagar %@?" = "¿Borrar %@?";
 "Apagar projeto" = "Borrar proyecto";
 "Apagar projeto…" = "Borrar proyecto…";

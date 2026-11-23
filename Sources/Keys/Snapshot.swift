@@ -38,6 +38,17 @@ enum Snapshot {
             try? await Task.sleep(for: .milliseconds(800))
             write(window, to: folder.appendingPathComponent("main-smallest.png"))
             window.setContentSize(NSSize(width: 1080, height: 680))
+            // The search, opened with ⌘F as a person would, then with something typed in it.
+            if let search = keyDown("f", modifiers: .command, in: window) {
+                window.performKeyEquivalent(with: search)
+                try? await Task.sleep(for: .milliseconds(700))
+                write(window, to: folder.appendingPathComponent("main-search-open.png"))
+                window.firstResponder?.insertText("aurora")
+                try? await Task.sleep(for: .milliseconds(700))
+                write(window, to: folder.appendingPathComponent("main-search.png"))
+                window.performKeyEquivalent(with: search)
+                try? await Task.sleep(for: .milliseconds(700))
+            }
             vault.selection = selected
         }
 
@@ -96,5 +107,14 @@ enum Snapshot {
               let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
         view.cacheDisplay(in: view.bounds, to: bitmap)
         try? bitmap.representation(using: .png, properties: [:])?.write(to: url)
+    }
+
+    /// A key press for `window`, to run a keyboard shortcut the way a person would.
+    private static func keyDown(_ key: String, modifiers: NSEvent.ModifierFlags, in window: NSWindow) -> NSEvent? {
+        NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: modifiers, timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window.windowNumber, context: nil, characters: key, charactersIgnoringModifiers: key,
+            isARepeat: false, keyCode: 3
+        )
     }
 }
