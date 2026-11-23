@@ -11,7 +11,11 @@ struct LeadingTitlebarAccessory<Content: View>: NSViewRepresentable {
         TitlebarAccessoryAnchor(content: AnyView(content))
     }
 
-    func updateNSView(_ view: TitlebarAccessoryAnchor, context: Context) {}
+    // It lives in its own hosting view, outside this view's tree, so it is handed the new content
+    // each time: a button showing whether what it opens is open has to redraw.
+    func updateNSView(_ view: TitlebarAccessoryAnchor, context: Context) {
+        view.update(content: AnyView(content))
+    }
 
     static func dismantleNSView(_ view: TitlebarAccessoryAnchor, coordinator: ()) {
         view.detach()
@@ -21,16 +25,21 @@ struct LeadingTitlebarAccessory<Content: View>: NSViewRepresentable {
 /// An empty view that finds the window to put the accessory in, and takes it out again.
 final class TitlebarAccessoryAnchor: NSView {
     private let accessory = NSTitlebarAccessoryViewController()
+    private let host: NSHostingView<AnyView>
 
     init(content: AnyView) {
+        host = NSHostingView(rootView: AnyView(content.frame(maxHeight: .infinity)))
         super.init(frame: .zero)
-        let host = NSHostingView(rootView: AnyView(content.frame(maxHeight: .infinity)))
         // It is in the title bar, so the title bar's safe area would push it down.
         host.safeAreaRegions = []
         // AppKit stretches it to the bar's height; only the width is the content's.
         host.frame.size.width = host.fittingSize.width
         accessory.layoutAttribute = .leading
         accessory.view = host
+    }
+
+    func update(content: AnyView) {
+        host.rootView = AnyView(content.frame(maxHeight: .infinity))
     }
 
     @available(*, unavailable)

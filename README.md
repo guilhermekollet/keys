@@ -42,7 +42,8 @@ pointing down. The name follows the Mac's language, in the app and in Finder, th
 
 **Projects**
 - **Projects inside projects**: a company and its products, a product and its services, as deep
-  as you need. The sidebar shows the tree, each project shows the path above it and its
+  as you need. The sidebar shows the tree, with every group folded when the app opens (the open
+  project's groups unfold to show it). Each project shows the path above it and its
   subprojects, and searching a project also searches what's inside it. Deleting a project keeps
   its subprojects, one level up.
 - A project per thing you maintain, with a symbol, a one-line summary and tags.
@@ -72,8 +73,9 @@ pointing down. The name follows the Mac's language, in the app and in Finder, th
 - A password generator without look-alike characters or quotes that break shells and `.env` files.
 
 **Everyday details**
-- Search everything from the sidebar: names, context, tags, links, variable names and usernames.
-  Secret values are never searched.
+- Search everything with the magnifying glass beside the sidebar button, or ⌘F: the field slides
+  down at the top of the sidebar and looks at names, context, tags, links, variable names and
+  usernames. ↓ and ↑ move through the results; Esc closes it. Secret values are never searched.
 - **The menu bar**: click the icon, click a project (and a subproject, if it has them), and search
   its accesses and variables; each one copies with a click, without opening the main window. Typing before choosing a project
   searches all of them (try "aurora prod database"). Esc goes back to the projects.

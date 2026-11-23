@@ -359,15 +359,26 @@ struct SidebarIcon: View {
 /// The sidebar button: the icon, and a rounded rectangle behind it under the pointer, the shape of
 /// the system's own title bar buttons.
 struct SidebarButtonLabel: View {
+    var body: some View {
+        TitlebarButtonLabel { SidebarIcon() }
+    }
+}
+
+/// A title bar button's look: an icon, and a rounded rectangle behind it under the pointer or
+/// while what it opens is showing (`active`).
+struct TitlebarButtonLabel<Icon: View>: View {
+    var active = false
+    @ViewBuilder let icon: Icon
     @State private var hovering = false
 
     var body: some View {
-        SidebarIcon()
-            .foregroundStyle(Theme.paper.opacity(hovering ? 0.95 : 0.7))
+        icon
+            .foregroundStyle(Theme.paper.opacity(hovering || active ? 0.95 : 0.7))
             .frame(width: 26, height: 26)
-            .background(Theme.paper.opacity(hovering ? 0.1 : 0), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .background(Theme.paper.opacity(active ? 0.13 : hovering ? 0.1 : 0), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
             .onHover { hovering = $0 }
             .animation(.easeOut(duration: 0.12), value: hovering)
+            .animation(.easeOut(duration: 0.12), value: active)
     }
 }

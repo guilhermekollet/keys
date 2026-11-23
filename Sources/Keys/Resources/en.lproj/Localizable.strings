@@ -31,6 +31,9 @@
 "Trancar o cofre (⇧⌘L)" = "Lock the vault (⇧⌘L)";
 "O cofre de exemplo não tranca" = "The sample vault doesn't lock";
 "Buscar em tudo" = "Search everything";
+"Buscar em tudo (⌘F)" = "Search everything (⌘F)";
+"Fechar a busca" = "Close search";
+"Fechar a busca (⌘F)" = "Close search (⌘F)";
 "Apagar %@?" = "Delete %@?";
 "Apagar projeto" = "Delete project";
 "Apagar projeto…" = "Delete project…";
