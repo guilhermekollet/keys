@@ -134,22 +134,57 @@ enum BackupError: LocalizedError, Equatable {
 
 extension VaultContents {
     /// These contents with a backup's added in: projects that aren't here come in, and a project
-    /// that is in both keeps whichever copy was changed last. Nothing here is deleted.
+    /// that is in both keeps whichever copy was changed last, except that an access moved between
+    /// projects ends up only where it last moved to (see `placingMovedCredentials`).
     func merging(_ other: VaultContents) -> (contents: VaultContents, added: Int, updated: Int) {
         var merged = projects
         var added = 0
-        var updated = 0
         for project in other.projects {
             if let index = merged.firstIndex(where: { $0.id == project.id }) {
                 if project.updatedAt > merged[index].updatedAt {
                     merged[index] = project
-                    updated += 1
                 }
             } else {
                 merged.append(project)
                 added += 1
             }
         }
+        merged = placingMovedCredentials(from: other, in: merged)
+        // Counted at the end: placing a moved access can change a project that wasn't replaced.
+        let updated = zip(projects, merged).filter { $0 != $1 }.count
         return (VaultContents(projects: merged), added, updated)
+    }
+
+    /// Choosing whole projects would lose or repeat an access that is in one project here and in
+    /// another in the backup. Such an access goes only where it last moved to, with the contents of
+    /// the copy whose password changed last or, with the same password date, of the newer project.
+    private func placingMovedCredentials(from other: VaultContents, in merged: [Project]) -> [Project] {
+        typealias Copy = (project: Project, credential: Credential)
+        var theirs: [Credential.ID: Copy] = [:]
+        for project in other.projects {
+            for credential in project.credentials { theirs[credential.id] = (project, credential) }
+        }
+        var result = merged
+        for project in projects {
+            for credential in project.credentials {
+                guard let their = theirs[credential.id], their.project.id != project.id else { continue }
+                let my: Copy = (project, credential)
+                let place = (their.credential.movedAt ?? .distantPast) > (credential.movedAt ?? .distantPast) ? their : my
+                let latest = (their.credential.updatedAt, their.project.updatedAt) > (credential.updatedAt, project.updatedAt) ? their : my
+                var placed = latest.credential
+                placed.movedAt = place.credential.movedAt
+
+                for index in result.indices {
+                    if result[index].id != place.project.id {
+                        result[index].credentials.removeAll { $0.id == placed.id }
+                    } else if let position = result[index].credentials.firstIndex(where: { $0.id == placed.id }) {
+                        result[index].credentials[position] = placed
+                    } else {
+                        result[index].credentials.append(placed)
+                    }
+                }
+            }
+        }
+        return result
     }
 }
