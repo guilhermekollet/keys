@@ -118,6 +118,64 @@ enum DotEnv {
         return "\"\(escaped)\""
     }
 
+    /// The numbers (from 1) of the lines in `text` that `parse` would skip although they aren't
+    /// blank or a `#` comment, so an edit with a typo can be refused instead of losing a variable.
+    /// The lines inside a quoted value that spans several lines are part of it, not mistakes.
+    static func invalidLines(_ text: String) -> [Int] {
+        let lines = text.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n")
+        var invalid: [Int] = []
+        var openQuote: Character?
+        for (index, line) in lines.enumerated() {
+            if let quote = openQuote {
+                if line.contains(quote) { openQuote = nil }
+                continue
+            }
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.isEmpty || trimmed.hasPrefix("#") { continue }
+            guard let equals = trimmed.firstIndex(of: "=") else {
+                invalid.append(index + 1)
+                continue
+            }
+            var key = trimmed[..<equals].trimmingCharacters(in: .whitespaces)
+            if key.hasPrefix("export ") {
+                key = String(key.dropFirst("export ".count)).trimmingCharacters(in: .whitespaces)
+            }
+            guard isValidKey(key) else {
+                invalid.append(index + 1)
+                continue
+            }
+            let value = trimmed[trimmed.index(after: equals)...].trimmingCharacters(in: .whitespaces)
+            if let quote = value.first, quote == "\"" || quote == "'" || quote == "`" {
+                let rest = value.dropFirst()
+                // A double quote escaped with a backslash doesn't close the value.
+                let closes = quote == "\"" ? rest.replacingOccurrences(of: "\\\\", with: "").replacingOccurrences(of: "\\\"", with: "").contains(quote) : rest.contains(quote)
+                if !closes { openQuote = quote }
+            }
+        }
+        // A quote still open at the end is read as a plain value, so it loses nothing.
+        return invalid
+    }
+
+    /// One line of an environment shown as a `.env` file: the key, and the value as it would be
+    /// written, or `masked` instead of a secret value until the person asks to see it.
+    struct DisplayLine: Equatable {
+        var key: String
+        var value: String
+        var masked: Bool
+    }
+
+    /// The same mask for every hidden value, so the screen doesn't tell how long a secret is.
+    static let mask = "••••••••"
+
+    /// `variables` as the lines of the `.env` file `format` would write, with secret values masked
+    /// unless `revealing`. Variables without a name are left out, as they are from the file.
+    static func displayLines(_ variables: [Variable], revealing: Bool) -> [DisplayLine] {
+        variables.filter { !$0.key.isEmpty }.map { variable in
+            let hidden = variable.isSecret && !revealing && !variable.value.isEmpty
+            return DisplayLine(key: variable.key, value: hidden ? mask : quoted(variable.value), masked: hidden)
+        }
+    }
+
     static func isValidKey(_ key: String) -> Bool {
         guard let first = key.unicodeScalars.first, first == "_" || CharacterSet.letters.contains(first), first.isASCII else { return false }
         return key.unicodeScalars.allSatisfy { $0.isASCII && (CharacterSet.alphanumerics.contains($0) || "_.-".unicodeScalars.contains($0)) }
