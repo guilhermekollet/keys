@@ -39,8 +39,6 @@
 "Apagar projeto…" = "Borrar proyecto…";
 "O contexto, as variáveis e os acessos do projeto saem do cofre. A cópia de segurança de antes desta sessão continua em Backups." = "El contexto, las variables y los accesos del proyecto salen de la bóveda. La copia de seguridad de antes de esta sesión sigue en Backups.";
 "Nenhum projeto ainda" = "Aún no hay proyectos";
-"Escolha um projeto" = "Elige un proyecto";
-"Cada projeto guarda o contexto para retomá-lo, as variáveis de ambiente e os acessos." = "Cada proyecto guarda el contexto para retomarlo, sus variables de entorno y sus accesos.";
 "Sem nome" = "Sin nombre";
 
 /* Project */
@@ -332,3 +330,28 @@
 "As linhas %@ não são CHAVE=valor." = "Las líneas %@ no son CLAVE=valor.";
 "%lld novas, %lld atualizadas, %lld removidas" = "%lld nuevas, %lld actualizadas, %lld eliminadas";
 "Preenchido" = "Con contenido";
+
+/* The start page */
+"Início" = "Inicio";
+"Bom dia" = "Buenos días";
+"Boa tarde" = "Buenas tardes";
+"Boa noite" = "Buenas noches";
+"1 projeto" = "1 proyecto";
+"%lld projetos" = "%lld proyectos";
+"1 acesso" = "1 acceso";
+"%lld acessos" = "%lld accesos";
+"1 variável" = "1 variable";
+"%lld variáveis" = "%lld variables";
+"1 link" = "1 enlace";
+"%lld links" = "%lld enlaces";
+"%@, %@ e %@" = "%@, %@ y %@";
+"Último backup %@" = "Última copia %@";
+"Sem senha" = "Sin contraseña";
+"Sem contexto" = "Sin contexto";
+"Todos com senha" = "Todos tienen";
+"Todos com contexto" = "Todos tienen";
+"acesso" = "acceso";
+"acessos" = "accesos";
+"projeto" = "proyecto";
+"projetos" = "proyectos";
+"Vazio por enquanto" = "Vacío por ahora";

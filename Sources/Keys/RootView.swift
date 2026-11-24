@@ -207,7 +207,7 @@ struct MainView: View {
                     ProjectView(project: project)
                         .id(id)
                 } else {
-                    emptyDetail
+                    HomeView()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -472,6 +472,7 @@ struct MainView: View {
         // still work while the list has the keyboard.
         List {
             if Search.words(query).isEmpty {
+                HomeRow()
                 // The projects in use, as a tree. Archived ones aren't here at all: they live in
                 // Settings › Archived, out of the way.
                 ForEach(ProjectTree.roots(archived: false, in: vault.projects)) { project in
@@ -535,21 +536,6 @@ struct MainView: View {
         Button(localized("Arquivar")) { vault.setArchived(project.id, true) }
         Divider()
         Button(localized("Apagar projeto…"), role: .destructive) { deleting = project.id }
-    }
-
-    private var emptyDetail: some View {
-        VStack(spacing: 14) {
-            KeyMark()
-                .frame(height: 44)
-                .opacity(0.5)
-            Text(localized("Escolha um projeto"))
-                .font(Theme.display(22))
-            Text(localized("Cada projeto guarda o contexto para retomá-lo, as variáveis de ambiente e os acessos."))
-                .font(.system(size: 12.5))
-                .foregroundStyle(Theme.muted)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 320)
-        }
     }
 }
 
@@ -624,6 +610,41 @@ struct SelectableProjectRow: View {
                 .accessibilityLabel(expanded ? localized("Ocultar os subprojetos") : localized("Mostrar os subprojetos"))
             }
         }
+    }
+}
+
+/// The start page's place at the top of the sidebar, highlighted while it shows.
+struct HomeRow: View {
+    @EnvironmentObject private var vault: Vault
+    @State private var hovering = false
+
+    var body: some View {
+        let selected = vault.selection == nil
+        Button {
+            vault.selection = nil
+        } label: {
+            HStack(spacing: 11) {
+                Image(systemName: "square.grid.2x2")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(Theme.paper.opacity(0.8))
+                    .frame(width: 32, height: 32)
+                    .background(Theme.paper.opacity(0.08), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                Text(localized("Início"))
+                    .font(.system(size: 14, weight: selected ? .semibold : .regular))
+                    .foregroundStyle(selected ? Theme.paper : Theme.paper.opacity(0.85))
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, 6)
+            .padding(.horizontal, 7)
+            .background(
+                Theme.paper.opacity(selected ? 0.09 : hovering ? 0.04 : 0),
+                in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 

@@ -19,6 +19,12 @@ enum Snapshot {
                 write(window, to: folder.appendingPathComponent("main-\(section.rawValue).png"))
             }
             vault.section = .all
+            // The start page, with nothing open.
+            let open = vault.selection
+            vault.selection = nil
+            try? await Task.sleep(for: .milliseconds(600))
+            write(window, to: folder.appendingPathComponent("home.png"))
+            vault.selection = open
             // A project with subprojects: its chips, and the tree in the sidebar.
             let selected = vault.selection
             vault.selection = vault.projects.first { !ProjectTree.children(of: $0.id, in: vault.projects).isEmpty }?.id
