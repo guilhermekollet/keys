@@ -39,8 +39,6 @@
 "Apagar projeto…" = "Delete project…";
 "O contexto, as variáveis e os acessos do projeto saem do cofre. A cópia de segurança de antes desta sessão continua em Backups." = "The project's context, variables and accesses leave the vault. The backup from before this session stays in Backups.";
 "Nenhum projeto ainda" = "No projects yet";
-"Escolha um projeto" = "Choose a project";
-"Cada projeto guarda o contexto para retomá-lo, as variáveis de ambiente e os acessos." = "Each project keeps the context to pick it up again, its environment variables and its accesses.";
 "Sem nome" = "Untitled";
 
 /* Project */
@@ -332,3 +330,28 @@
 "As linhas %@ não são CHAVE=valor." = "Lines %@ aren't KEY=value.";
 "%lld novas, %lld atualizadas, %lld removidas" = "%lld new, %lld updated, %lld removed";
 "Preenchido" = "Filled in";
+
+/* The start page */
+"Início" = "Home";
+"Bom dia" = "Good morning";
+"Boa tarde" = "Good afternoon";
+"Boa noite" = "Good evening";
+"1 projeto" = "1 project";
+"%lld projetos" = "%lld projects";
+"1 acesso" = "1 access";
+"%lld acessos" = "%lld accesses";
+"1 variável" = "1 variable";
+"%lld variáveis" = "%lld variables";
+"1 link" = "1 link";
+"%lld links" = "%lld links";
+"%@, %@ e %@" = "%@, %@ and %@";
+"Último backup %@" = "Last backup %@";
+"Sem senha" = "No password";
+"Sem contexto" = "No context";
+"Todos com senha" = "All have one";
+"Todos com contexto" = "All have one";
+"acesso" = "access";
+"acessos" = "accesses";
+"projeto" = "project";
+"projetos" = "projects";
+"Vazio por enquanto" = "Empty for now";

@@ -911,3 +911,8 @@ func lastBackupSeconds(storedAs stored: String) -> Double? {
     }
     return Preferences.lastBackup(in: defaults)?.timeIntervalSinceReferenceDate
 }
+
+/// Today at `hour` o'clock, in the Mac's calendar, for the start page's greeting.
+func dateAt(hour: Int) -> Date {
+    Calendar.current.date(bySettingHour: hour, minute: 0, second: 0, of: Date()) ?? Date()
+}
