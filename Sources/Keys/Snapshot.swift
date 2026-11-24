@@ -79,6 +79,13 @@ enum Snapshot {
         if let credential = vault.projects.first?.credentials.last {
             await draw(CredentialEditor(credential: .constant(credential), close: {}, destinations: { [] }, move: { _ in }) {}.frame(width: 360, height: 600).background(Theme.panel), size: nil, to: folder, name: "credential-editor")
         }
+        // An access with recovery codes (made up), two of them used.
+        if var credential = vault.projects.first?.credentials.last {
+            credential.recoveryCodes = ["a7k2p-9xq4m", "m3r8t-2wz6c", "q5n1v-7ty3b", "h4d9s-6pl2e", "x8c3f-1gu7k", "e2w6j-5rn9a"].enumerated().map { index, code in
+                RecoveryCode(code: code, usedAt: index < 2 ? Date() : nil)
+            }
+            await draw(CredentialEditor(credential: .constant(credential), close: {}, destinations: { [] }, move: { _ in }) {}.frame(width: 360, height: 760).background(Theme.panel), size: nil, to: folder, name: "credential-editor-codes")
+        }
         if let environment = vault.projects.first(where: { !$0.environments.isEmpty })?.environments.first {
             await draw(DotEnvView(variables: environment.variables, dotEnv: environment.dotEnv) { _ in }.padding(20).frame(width: 640).background(Theme.ink), size: nil, to: folder, name: "variables-dotenv")
             await draw(DotEnvView(variables: environment.variables, dotEnv: environment.dotEnv, startsEditing: true) { _ in }.padding(20).frame(width: 640).background(Theme.ink), size: nil, to: folder, name: "variables-dotenv-editing")

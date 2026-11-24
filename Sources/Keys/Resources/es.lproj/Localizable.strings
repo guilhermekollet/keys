@@ -372,3 +372,26 @@
 "Ciência e estudo" = "Ciencia y estudio";
 "Lazer e esporte" = "Ocio y deporte";
 "Vida e natureza" = "Vida y naturaleza";
+
+/* Recovery codes */
+"Códigos de recuperação" = "Códigos de recuperación";
+"%lld de %lld disponíveis" = "%lld de %lld disponibles";
+"Os códigos de uso único que o serviço dá para entrar se você perder a senha ou o segundo fator." = "Los códigos de un solo uso que da el servicio para entrar si pierdes la contraseña o el segundo factor.";
+"Digitar…" = "Escribir…";
+"Um por linha. A numeração é ignorada." = "Uno por línea. La numeración se ignora.";
+"Adicionar 1 código" = "Añadir 1 código";
+"Adicionar %lld códigos" = "Añadir %lld códigos";
+"Adicionar códigos…" = "Añadir códigos…";
+"Copiar os disponíveis" = "Copiar los disponibles";
+"Apagar todos…" = "Borrar todos…";
+"Adicionar, copiar ou apagar os códigos" = "Añadir, copiar o borrar los códigos";
+"Apagar os códigos de recuperação?" = "¿Borrar los códigos de recuperación?";
+"Apagar códigos" = "Borrar códigos";
+"Eles saem do cofre. Guarde-os em outro lugar antes, se ainda precisar deles." = "Salen de la bóveda. Guárdalos en otro lugar antes si aún los necesitas.";
+"Mostrar os códigos" = "Mostrar los códigos";
+"Ocultar os códigos" = "Ocultar los códigos";
+"Copiar o código" = "Copiar el código";
+"Marcar como usado" = "Marcar como usado";
+"Marcar como não usado" = "Marcar como no usado";
+"Código %lld" = "Código %lld";
+"Código %lld, usado" = "Código %lld, usado";
