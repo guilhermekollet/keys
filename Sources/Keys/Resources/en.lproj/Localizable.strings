@@ -318,5 +318,11 @@
 
 /* Moving accesses */
 "Mover para" = "Move to";
-"Mover para outro projeto" = "Move to another project";
 "Nenhum outro projeto" = "No other projects";
+
+/* An access's panel */
+"Detalhes" = "Details";
+"Mais" = "More";
+"Copiar usuário" = "Copy username";
+"Copiar senha" = "Copy password";
+"Copiado" = "Copied";

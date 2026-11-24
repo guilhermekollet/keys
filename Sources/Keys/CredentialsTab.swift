@@ -110,6 +110,8 @@ struct CredentialIcon: View {
 }
 
 /// One access in the panel floating on the project's right; the changes apply as they are typed.
+/// What is done most, opening and copying, sits on top; the details to edit come below, and moving
+/// and deleting wait in "More", away from a stray click.
 struct CredentialEditor: View {
     @Binding var credential: Credential
     let close: () -> Void
@@ -127,76 +129,78 @@ struct CredentialEditor: View {
                 .padding([.horizontal, .top], 18)
                 .padding(.bottom, 14)
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    field(localized("Tipo")) {
-                        Picker(localized("Tipo"), selection: $credential.kind) {
-                            ForEach(Credential.Kind.allCases) { kind in
-                                Label(kind.label, systemImage: kind.symbol).tag(kind)
-                            }
-                        }
-                        .labelsHidden()
-                        .fixedSize()
+                VStack(alignment: .leading, spacing: 16) {
+                    if hasSomethingToUse {
+                        actions
                     }
-                    field(localized("Nome")) {
-                        TextField(localized("Painel da Vercel, banco de produção…"), text: $credential.title)
-                            .textFieldStyle(.field)
-                    }
-                    field(localized("Endereço")) {
-                        HStack(spacing: 6) {
-                            TextField("https://", text: $credential.url)
-                                .textFieldStyle(.code)
-                            if let url = URL(string: credential.url), let scheme = url.scheme, ["http", "https"].contains(scheme) {
-                                IconButton(symbol: "arrow.up.right", help: localized("Abrir \(url.host() ?? credential.url)")) {
-                                    NSWorkspace.shared.open(url)
+                    section(localized("Detalhes")) {
+                        VStack(spacing: 0) {
+                            row(localized("Tipo")) {
+                                Picker(localized("Tipo"), selection: $credential.kind) {
+                                    ForEach(Credential.Kind.allCases) { kind in
+                                        Label(kind.label, systemImage: kind.symbol).tag(kind)
+                                    }
                                 }
+                                .labelsHidden()
+                                .pickerStyle(.menu)
+                                .buttonStyle(.plain)
+                                .fixedSize()
+                                Spacer(minLength: 0)
                             }
-                        }
-                    }
-                    field(localized("Usuário")) {
-                        HStack(spacing: 6) {
-                            TextField(localized("Usuário"), text: $credential.username)
-                                .textFieldStyle(.code)
-                            CopyButton(value: credential.username, symbol: "person", help: localized("Copiar o usuário"))
-                        }
-                    }
-                    field(localized("Senha")) {
-                        HStack(spacing: 6) {
-                            Group {
-                                if revealed {
-                                    TextField(localized("Senha"), text: $credential.password)
-                                } else {
-                                    SecureField(localized("Senha"), text: $credential.password)
+                            RowDivider()
+                            row(localized("Nome")) {
+                                TextField(localized("Painel da Vercel, banco de produção…"), text: $credential.title)
+                                    .textFieldStyle(.plain)
+                                    .font(.system(size: 12.5))
+                            }
+                            RowDivider()
+                            row(localized("Endereço")) {
+                                TextField("https://", text: $credential.url)
+                                    .textFieldStyle(.plain)
+                                    .font(.system(size: 12.5, design: .monospaced))
+                            }
+                            RowDivider()
+                            row(localized("Usuário")) {
+                                TextField(localized("Usuário"), text: $credential.username)
+                                    .textFieldStyle(.plain)
+                                    .font(.system(size: 12.5, design: .monospaced))
+                            }
+                            RowDivider()
+                            row(localized("Senha")) {
+                                Group {
+                                    if revealed {
+                                        TextField(localized("Senha"), text: $credential.password)
+                                    } else {
+                                        SecureField(localized("Senha"), text: $credential.password)
+                                    }
                                 }
-                            }
-                            .textFieldStyle(.code(trailingRoom: 18))
-                            // Inside the field, at its right end, as in macOS's own password fields.
-                            .overlay(alignment: .trailing) {
+                                .textFieldStyle(.plain)
+                                .font(.system(size: 12.5, design: .monospaced))
                                 IconButton(symbol: revealed ? "eye.slash" : "eye", help: revealed ? localized("Ocultar") : localized("Mostrar")) {
                                     revealed.toggle()
                                 }
-                                .padding(.trailing, 2)
-                            }
-                            CopyButton(value: credential.password, secret: true, symbol: "key", help: localized("Copiar a senha"))
-                            IconButton(symbol: "wand.and.stars", help: localized("Gerar senha"), color: Theme.accent) {
-                                showsGenerator.toggle()
-                            }
-                            .popover(isPresented: $showsGenerator, arrowEdge: .bottom) {
-                                GeneratorPopover(generator: $generator) { password in
-                                    credential.password = password
-                                    revealed = true
-                                    showsGenerator = false
+                                IconButton(symbol: "wand.and.stars", help: localized("Gerar senha"), color: Theme.accent) {
+                                    showsGenerator.toggle()
+                                }
+                                .popover(isPresented: $showsGenerator, arrowEdge: .bottom) {
+                                    GeneratorPopover(generator: $generator) { password in
+                                        credential.password = password
+                                        revealed = true
+                                        showsGenerator = false
+                                    }
                                 }
                             }
                         }
+                        .padding(.horizontal, 12)
+                        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
-                    field(localized("Notas")) {
+                    section(localized("Notas")) {
                         TextEditor(text: $credential.notes)
                             .font(.system(size: 12.5))
                             .scrollContentBackground(.hidden)
                             .padding(6)
-                            .frame(minHeight: 110)
-                            .background(Theme.surface, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Theme.hairline))
+                            .frame(minHeight: 96)
+                            .background(Theme.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
                 }
                 .padding(.horizontal, 18)
@@ -205,8 +209,7 @@ struct CredentialEditor: View {
             .scrollBounceBehavior(.basedOnSize)
 
             HStack {
-                IconButton(symbol: "trash", help: localized("Apagar acesso…"), color: .red.opacity(0.85), action: delete)
-                moveMenu
+                moreMenu
                 Spacer()
                 Button(localized("Pronto"), action: close)
                     .buttonStyle(PillButtonStyle())
@@ -221,25 +224,49 @@ struct CredentialEditor: View {
         .onChange(of: credential.password) { credential.updatedAt = Date() }
     }
 
-    private var moveMenu: some View {
+    /// The address, when it is a page the browser can open.
+    private var webURL: URL? {
+        guard let url = URL(string: credential.url), let scheme = url.scheme, ["http", "https"].contains(scheme) else { return nil }
+        return url
+    }
+
+    private var hasSomethingToUse: Bool {
+        webURL != nil || !credential.username.isEmpty || !credential.password.isEmpty
+    }
+
+    private var actions: some View {
+        HStack(spacing: 8) {
+            if let url = webURL {
+                ActionTile(symbol: "arrow.up.right", title: localized("Abrir"), help: localized("Abrir \(url.host() ?? credential.url)")) {
+                    NSWorkspace.shared.open(url)
+                }
+            }
+            if !credential.username.isEmpty {
+                CopyTile(value: credential.username, symbol: "person", title: localized("Copiar usuário"))
+            }
+            if !credential.password.isEmpty {
+                CopyTile(value: credential.password, secret: true, symbol: "key", title: localized("Copiar senha"))
+            }
+        }
+    }
+
+    private var moreMenu: some View {
         Menu {
-            CredentialDestinations(destinations: destinations, move: move)
+            Menu(localized("Mover para")) {
+                CredentialDestinations(destinations: destinations, move: move)
+            }
+            // An access with nothing in it isn't kept, so there's nothing to move.
+            .disabled(credential.isEmpty)
+            Divider()
+            Button(localized("Apagar acesso…"), role: .destructive, action: delete)
         } label: {
-            Image(systemName: "folder")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Theme.paper.opacity(0.7))
-                .frame(width: 24, height: 24)
-                .contentShape(Circle())
+            Label(localized("Mais"), systemImage: "ellipsis")
+                .labelStyle(.titleAndIcon)
         }
         .menuStyle(.button)
-        .buttonStyle(.plain)
+        .buttonStyle(PillButtonStyle(prominent: false))
         .menuIndicator(.hidden)
         .fixedSize()
-        // An access with nothing in it isn't kept, so there's nothing to move.
-        .disabled(credential.isEmpty)
-        .opacity(credential.isEmpty ? 0.35 : 1)
-        .help(localized("Mover para outro projeto"))
-        .accessibilityLabel(localized("Mover para outro projeto"))
     }
 
     private var header: some View {
@@ -268,9 +295,10 @@ struct CredentialEditor: View {
                 Text(credential.displayTitle.isEmpty ? localized("Novo acesso") : credential.displayTitle)
                     .font(Theme.display(19))
                     .lineLimit(1)
-                Text(credential.kind.label)
+                Text(webURL?.host() ?? credential.kind.label)
                     .font(.system(size: 11.5))
                     .foregroundStyle(Theme.muted)
+                    .lineLimit(1)
             }
             Spacer(minLength: 8)
             IconButton(symbol: "xmark", help: localized("Fechar"), action: close)
@@ -278,13 +306,82 @@ struct CredentialEditor: View {
         }
     }
 
-    private func field<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(label)
+    private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(Theme.muted)
+                .padding(.leading, 2)
             content()
         }
+    }
+
+    /// A line of the details: its name on the left, what to edit on the right.
+    private func row<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
+        HStack(spacing: 8) {
+            Text(label)
+                .font(.system(size: 11.5))
+                .foregroundStyle(Theme.muted)
+                .frame(width: 66, alignment: .leading)
+            content()
+        }
+        .frame(minHeight: 36)
+    }
+}
+
+/// A large button with its icon over its name, for what an access is used for most.
+struct ActionTile: View {
+    let symbol: String
+    let title: String
+    var help: String?
+    var highlighted = false
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 5) {
+                Image(systemName: symbol)
+                    .font(.system(size: 14, weight: .medium))
+                    .frame(height: 16)
+                Text(title)
+                    .font(.system(size: 11.5, weight: .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
+            .foregroundStyle(Theme.paper.opacity(highlighted || hovering ? 1 : 0.85))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .padding(.horizontal, 6)
+            .background(Theme.paper.opacity(highlighted ? 0.14 : hovering ? 0.1 : 0.06), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: hovering)
+        .animation(.easeOut(duration: 0.12), value: highlighted)
+        .help(help ?? title)
+    }
+}
+
+/// An action tile that copies `value`, saying "Copied" for a moment.
+struct CopyTile: View {
+    let value: String
+    var secret = false
+    let symbol: String
+    let title: String
+    @State private var copied = false
+
+    var body: some View {
+        ActionTile(symbol: copied ? "checkmark" : symbol, title: copied ? localized("Copiado") : title, highlighted: copied) {
+            Clipboard.copy(value, secret: secret)
+            copied = true
+            Task {
+                try? await Task.sleep(for: .seconds(1.2))
+                copied = false
+            }
+        }
+        .accessibilityLabel(title)
     }
 }
 
