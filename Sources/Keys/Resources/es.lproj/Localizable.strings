@@ -186,12 +186,7 @@
 /* Projects inside projects */
 "Novo subprojeto" = "Nuevo subproyecto";
 "O contexto, as variáveis e os acessos do projeto saem do cofre. Os subprojetos ficam, um nível acima." = "El contexto, las variables y los accesos del proyecto salen de la bóveda. Los subproyectos se quedan, un nivel más arriba.";
-"Subprojeto" = "Subproyecto";
-"Criar um projeto dentro deste" = "Crear un proyecto dentro de este";
-"Dentro de" = "Dentro de";
 "Nenhum: projeto principal" = "Ninguno: proyecto principal";
-"Em %@" = "En %@";
-"Projeto principal" = "Proyecto principal";
 "Mover para dentro de outro projeto" = "Mover dentro de otro proyecto";
 "Subprojetos" = "Subproyectos";
 "Este projeto ainda não tem acessos, variáveis nem subprojetos." = "Este proyecto aún no tiene accesos, variables ni subproyectos.";
@@ -316,6 +311,18 @@
 "Encerrar sem salvar" = "Salir sin guardar";
 "Suas alterações ficaram em outro arquivo" = "Tus cambios quedaron en otro archivo";
 
+/* Moving accesses */
+"Mover para" = "Mover a";
+"Nenhum outro projeto" = "Ningún otro proyecto";
+
+/* An access's panel */
+"Detalhes" = "Detalles";
+"Mais" = "Más";
+"Copiar usuário" = "Copiar usuario";
+"Copiar senha" = "Copiar contraseña";
+"Copiado" = "Copiado";
+"Mais opções do projeto" = "Más opciones del proyecto";
+"Em %@" = "En %@";
 /* Variables as a .env file */
 "Ver como lista" = "Ver como lista";
 "Ver como .env" = "Ver como .env";

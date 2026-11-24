@@ -80,6 +80,9 @@ struct Credential: Codable, Identifiable, Hashable {
     /// The icon picked for this access; without one it shows its kind's.
     var symbol: String?
     var updatedAt = Date()
+    /// When it last moved to another project, so merging a backup knows which place is current.
+    /// Nil while it's where it was created.
+    var movedAt: Date?
 
     enum Kind: String, Codable, CaseIterable, Identifiable {
         case website, database, server, apiKey, email, other
@@ -267,6 +270,39 @@ enum ProjectTree {
             if project.parentID == id { project.parentID = parent }
             return project
         }
+    }
+}
+
+// MARK: Moving accesses
+
+/// A project an access can move to, named by its path.
+struct CredentialDestination: Identifiable {
+    let id: Project.ID
+    let path: String
+}
+
+extension [Project] {
+    /// Where an access in `source` can move: every other project in use, at any depth, by path.
+    func credentialDestinations(from source: Project.ID) -> [CredentialDestination] {
+        filter { $0.id != source && !$0.isArchived }
+            .map { CredentialDestination(id: $0.id, path: ProjectTree.path(of: $0, in: self)) }
+            .sorted { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
+    }
+
+    /// The projects with the access taken out of `source` and added at the end of `destination`,
+    /// both changed at `date`. Unchanged when it can't move there, so it is never left in neither.
+    func movingCredential(_ id: Credential.ID, from source: Project.ID, to destination: Project.ID, at date: Date) -> [Project] {
+        guard source != destination,
+              let from = firstIndex(where: { $0.id == source }),
+              let to = firstIndex(where: { $0.id == destination }), !self[to].isArchived,
+              let index = self[from].credentials.firstIndex(where: { $0.id == id }) else { return self }
+        var result = self
+        var credential = result[from].credentials.remove(at: index)
+        credential.movedAt = date
+        result[to].credentials.append(credential)
+        result[from].updatedAt = date
+        result[to].updatedAt = date
+        return result
     }
 }
 
@@ -470,5 +506,6 @@ extension Credential {
         notes = try container.value(.notes, or: "")
         symbol = try? container.decodeIfPresent(String.self, forKey: .symbol)
         updatedAt = try container.value(.updatedAt, or: Date())
+        movedAt = try container.decodeIfPresent(Date.self, forKey: .movedAt)
     }
 }

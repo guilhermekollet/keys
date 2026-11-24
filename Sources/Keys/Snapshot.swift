@@ -71,7 +71,7 @@ enum Snapshot {
         await draw(MenuBarPanel(query: "prod", project: vault.projects.first?.id).environmentObject(vault), size: nil, to: folder, name: "panel-project-search")
         await draw(MenuBarPanel().environmentObject(Vault(previewing: .locked)), size: nil, to: folder, name: "panel-locked")
         if let credential = vault.projects.first?.credentials.last {
-            await draw(CredentialEditor(credential: .constant(credential), close: {}) {}.frame(width: 360, height: 600).background(Theme.panel), size: nil, to: folder, name: "credential-editor")
+            await draw(CredentialEditor(credential: .constant(credential), close: {}, destinations: { [] }, move: { _ in }) {}.frame(width: 360, height: 600).background(Theme.panel), size: nil, to: folder, name: "credential-editor")
         }
         if let environment = vault.projects.first(where: { !$0.environments.isEmpty })?.environments.first {
             await draw(DotEnvView(variables: environment.variables, dotEnv: environment.dotEnv) { _ in }.padding(20).frame(width: 640).background(Theme.ink), size: nil, to: folder, name: "variables-dotenv")

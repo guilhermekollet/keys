@@ -18,7 +18,9 @@ enum ProjectSection: String, CaseIterable, Identifiable {
 /// One project: its name on top, its context pinned under it, then a single list of its accesses,
 /// variables and links, filtered and searchable.
 struct ProjectView: View {
+    static let contentWidth: CGFloat = 860
     @Binding var project: Project
+    @EnvironmentObject private var vault: Vault
     /// The access open in the panel on the right.
     @State private var editing: Credential.ID?
     @State private var deletingCredential: Credential.ID?
@@ -27,22 +29,31 @@ struct ProjectView: View {
         VStack(alignment: .leading, spacing: 0) {
             ProjectHeader(project: $project)
                 .padding(.horizontal, 24)
-                .padding(.top, 20)
+                .padding(.top, 22)
             ContextCard(project: $project)
                 .padding(.horizontal, 20)
-                .padding(.top, 16)
-            ProjectItemsView(project: $project, editing: $editing, deletingCredential: $deletingCredential)
+                .padding(.top, 14)
+            ProjectItemsView(project: $project, editing: $editing, deletingCredential: $deletingCredential, moveCredential: move)
                 // Whatever the list holds, it fits the room left and never makes the window's
                 // content taller than the window (which pushed the sidebar and the header off
                 // screen once). It scrolls instead.
                 .frame(minHeight: 0, maxHeight: .infinity, alignment: .top)
                 .clipped()
         }
+        // A column that reads well: on a wide window the rows don't stretch from edge to edge,
+        // with their buttons far from their names.
+        .frame(maxWidth: Self.contentWidth)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         // Floats over the project rather than pushing it aside, so the list keeps its width and
         // another access can be opened with a click while this one is showing.
         .overlay(alignment: .trailing) {
             if let id = editing, let credential = credentialBinding(id) {
-                CredentialEditor(credential: credential, close: close) {
+                CredentialEditor(
+                    credential: credential,
+                    close: close,
+                    destinations: { vault.projects.credentialDestinations(from: project.id) },
+                    move: { move(id, to: $0) }
+                ) {
                     deletingCredential = id
                 }
                 .id(id)
@@ -76,6 +87,11 @@ struct ProjectView: View {
         editing = nil
     }
 
+    private func move(_ id: Credential.ID, to destination: Project.ID) {
+        if editing == id { editing = nil }
+        vault.moveCredential(id, from: project.id, to: destination)
+    }
+
     private func dropIfEmpty(_ id: Credential.ID?) {
         guard let id, let credential = project.credentials.first(where: { $0.id == id }), credential.isEmpty else { return }
         project.credentials.removeAll { $0.id == id }
@@ -98,21 +114,30 @@ struct ProjectHeader: View {
     @EnvironmentObject private var vault: Vault
     @State private var tags = ""
     @FocusState private var nameFocused: Bool
+    @FocusState private var tagsFocused: Bool
     @State private var choosingLook = false
+    @State private var hovering = false
+
+    private var children: [Project] {
+        ProjectTree.children(of: project.id, in: vault.projects).filter { $0.isArchived == project.isArchived }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             identity
-            // Under the header, across the whole width (not squeezed beside the badges), lined up
-            // with the name. It scrolls sideways only when there are more chips than fit.
-            ScrollView(.horizontal, showsIndicators: false) {
-                subprojects
+            if !children.isEmpty {
+                // Lined up with the name. It scrolls sideways only when there are more chips
+                // than fit.
+                ScrollView(.horizontal, showsIndicators: false) {
+                    subprojects
+                }
+                // As tall as the chips: a horizontal scroll view would otherwise take any height
+                // it's offered.
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, 46 + 14)
             }
-            // As tall as the chips: a horizontal scroll view would otherwise take any height
-            // it's offered.
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.leading, 46 + 14)
         }
+        .onHover { hovering = $0 }
         .onAppear {
             tags = project.tags.joined(separator: ", ")
             // A project just created opens with its name selected, ready to be typed over.
@@ -122,7 +147,13 @@ struct ProjectHeader: View {
         }
     }
 
-    /// Symbol, name, summary and tags, with where the project sits and its status on the right.
+    /// The tags field shows when there are tags, or while the pointer is over the header to add
+    /// some, so an empty project doesn't greet you with two lines of placeholders.
+    private var showsTags: Bool {
+        !tags.isEmpty || hovering || tagsFocused
+    }
+
+    /// Symbol, name, summary and tags, with its status and a menu of what else can be done on the right.
     private var identity: some View {
         HStack(alignment: .top, spacing: 14) {
             Button {
@@ -151,14 +182,26 @@ struct ProjectHeader: View {
                     .font(.system(size: 11.5))
                     .textFieldStyle(.plain)
                     .foregroundStyle(Theme.paper.opacity(0.45))
+                    .focused($tagsFocused)
                     .onChange(of: tags) { commitTags() }
+                    .opacity(showsTags ? 1 : 0)
+                    .animation(.easeOut(duration: 0.15), value: showsTags)
             }
 
             Spacer(minLength: 12)
 
-            parentMenu
+            if let archivedAt = project.archivedAt {
+                HStack(spacing: 6) {
+                    Badge(text: localized("Arquivado"), symbol: "archivebox")
+                        .help(localized("Arquivado em \(archivedAt.formatted(date: .abbreviated, time: .omitted))"))
+                    Button(localized("Desarquivar")) { vault.setArchived(project.id, false) }
+                        .buttonStyle(PillButtonStyle(prominent: false))
+                        .help(children.isEmpty ? localized("Volta a usar o projeto") : localized("Volta a usar o projeto e os subprojetos dele"))
+                }
+                .fixedSize()
+            }
 
-            archiveControl
+            moreMenu
         }
     }
 
@@ -180,10 +223,10 @@ struct ProjectHeader: View {
         }
     }
 
-    /// The projects inside this one, as chips that open them, and a way to add another.
+    /// The projects inside this one, as chips that open them.
     private var subprojects: some View {
         HStack(spacing: 6) {
-            ForEach(ProjectTree.children(of: project.id, in: vault.projects).filter { $0.isArchived == project.isArchived }) { child in
+            ForEach(children) { child in
                 Button {
                     vault.selection = child.id
                 } label: {
@@ -203,76 +246,48 @@ struct ProjectHeader: View {
                 .buttonStyle(.plain)
                 .help(localized("Abrir \(child.name)"))
             }
-            Button {
-                vault.addProject(inside: project.id)
-            } label: {
-                Label(localized("Subprojeto"), systemImage: "plus")
-                    .font(.system(size: 11.5, weight: .medium))
-                    .foregroundStyle(Theme.muted)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 4)
-                    .overlay(Capsule().strokeBorder(Theme.paper.opacity(0.15)))
-                    .contentShape(Capsule())
-            }
-            .buttonStyle(.plain)
-            .help(localized("Criar um projeto dentro deste"))
         }
     }
 
-    /// Archives the project (with its subprojects) or brings it back. An archived project says
-    /// since when, and that's the only way it looks different here.
-    @ViewBuilder
-    private var archiveControl: some View {
-        let hasSubprojects = !ProjectTree.children(of: project.id, in: vault.projects).isEmpty
-        if let archivedAt = project.archivedAt {
-            HStack(spacing: 6) {
-                Badge(text: localized("Arquivado"), symbol: "archivebox")
-                    .help(localized("Arquivado em \(archivedAt.formatted(date: .abbreviated, time: .omitted))"))
-                Button(localized("Desarquivar")) { vault.setArchived(project.id, false) }
-                    .buttonStyle(PillButtonStyle(prominent: false))
-                    .help(hasSubprojects ? localized("Volta a usar o projeto e os subprojetos dele") : localized("Volta a usar o projeto"))
-            }
-            .fixedSize()
-        } else {
-            Button {
-                vault.setArchived(project.id, true)
-            } label: {
-                Label(localized("Arquivar"), systemImage: "archivebox")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Theme.muted)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 4)
-                    .background(Theme.paper.opacity(0.07), in: Capsule())
-                    .contentShape(Capsule())
-            }
-            .buttonStyle(.plain)
-            .fixedSize()
-            .help(hasSubprojects
-                ? localized("Guarda o projeto e os subprojetos dele em Arquivados, fora da barra lateral e da barra de menus. Nada é apagado.")
-                : localized("Guarda o projeto em Arquivados, fora da barra lateral e da barra de menus. Nada é apagado."))
-        }
-    }
-
-    /// Moves the project inside another one, or back to the top level.
-    private var parentMenu: some View {
+    /// Where the project sits, a new subproject and archiving, out of the way until needed.
+    private var moreMenu: some View {
         Menu {
-            Picker(localized("Dentro de"), selection: $project.parentID) {
+            Button(localized("Novo subprojeto"), systemImage: "plus") {
+                vault.addProject(inside: project.id)
+            }
+            Picker(selection: $project.parentID) {
                 Text(localized("Nenhum: projeto principal")).tag(Project.ID?.none)
                 Divider()
                 ForEach(ProjectTree.possibleParents(for: project.id, in: vault.projects)) { candidate in
                     Text(ProjectTree.path(of: candidate, in: vault.projects)).tag(Optional(candidate.id))
                 }
+            } label: {
+                Label(localized("Mover para dentro de outro projeto"), systemImage: "folder")
             }
-            .pickerStyle(.inline)
+            .pickerStyle(.menu)
+            if !project.isArchived {
+                Divider()
+                Button(localized("Arquivar"), systemImage: "archivebox") {
+                    vault.setArchived(project.id, true)
+                }
+                .help(children.isEmpty
+                    ? localized("Guarda o projeto em Arquivados, fora da barra lateral e da barra de menus. Nada é apagado.")
+                    : localized("Guarda o projeto e os subprojetos dele em Arquivados, fora da barra lateral e da barra de menus. Nada é apagado."))
+            }
         } label: {
-            let parent = vault.project(project.parentID)
-            Badge(text: parent.map { localized("Em \($0.name)") } ?? localized("Projeto principal"), symbol: "folder")
+            Image(systemName: "ellipsis")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Theme.paper.opacity(0.75))
+                .frame(width: 30, height: 30)
+                .background(Theme.paper.opacity(0.07), in: Circle())
+                .contentShape(Circle())
         }
         .menuStyle(.button)
         .buttonStyle(.plain)
         .menuIndicator(.hidden)
         .fixedSize()
-        .help(localized("Mover para dentro de outro projeto"))
+        .help(localized("Mais opções do projeto"))
+        .accessibilityLabel(localized("Mais opções do projeto"))
     }
 
     private func commitTags() {
@@ -361,8 +376,10 @@ struct ContextCard: View {
                     }
             }
         }
-        .padding(12)
-        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(.horizontal, 12)
+        .padding(.vertical, expanded ? 12 : 9)
+        // Folded, it's a quiet line; open, a card to write in.
+        .background(Theme.surface.opacity(expanded ? 1 : 0.6), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     /// The first line of the context with words in it, without Markdown's heading marks.

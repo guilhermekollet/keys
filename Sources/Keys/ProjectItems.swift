@@ -9,6 +9,7 @@ struct ProjectItemsView: View {
     /// The access open in the project's side panel.
     @Binding var editing: Credential.ID?
     @Binding var deletingCredential: Credential.ID?
+    let moveCredential: (Credential.ID, Project.ID) -> Void
     @State private var query = ""
 
     var body: some View {
@@ -137,7 +138,14 @@ struct ProjectItemsView: View {
                     if credentials.isEmpty {
                         EmptyTab(symbol: "key", title: localized("Nenhum acesso"), text: localized("Painéis, bancos de dados, servidores e chaves de API do projeto."))
                     } else {
-                        CredentialsSection(credentials: credentials, selected: editing, open: { editing = $0 }, delete: { deletingCredential = $0 })
+                        CredentialsSection(
+                            credentials: credentials,
+                            selected: editing,
+                            open: { editing = $0 },
+                            destinations: { vault.projects.credentialDestinations(from: project.id) },
+                            move: moveCredential,
+                            delete: { deletingCredential = $0 }
+                        )
                     }
                 }
             }
@@ -180,15 +188,19 @@ struct ProjectItemsView: View {
         }
     }
 
+    /// A kind of item under its name. The name only shows with everything listed: with one kind
+    /// picked, the chip above already says it.
     private func section<Content: View>(_ title: String, count: Int, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
-                Text(title)
-                    .font(.system(size: 13, weight: .semibold))
-                if count > 0 {
-                    Text("\(count)")
-                        .font(.system(size: 11.5).monospacedDigit())
-                        .foregroundStyle(Theme.muted)
+            if filter == .all {
+                HStack(spacing: 6) {
+                    Text(title)
+                        .font(.system(size: 13, weight: .semibold))
+                    if count > 0 {
+                        Text("\(count)")
+                            .font(.system(size: 11.5).monospacedDigit())
+                            .foregroundStyle(Theme.muted)
+                    }
                 }
             }
             content()

@@ -523,6 +523,11 @@ final class Vault: ObservableObject {
         if selection == id { selection = nil }
     }
 
+    /// Moves an access to another project in a single change, so no save catches it in both or in neither.
+    func moveCredential(_ id: Credential.ID, from source: Project.ID, to destination: Project.ID) {
+        projects = projects.movingCredential(id, from: source, to: destination, at: Date())
+    }
+
     func project(_ id: Project.ID?) -> Project? {
         projects.first { $0.id == id }
     }
