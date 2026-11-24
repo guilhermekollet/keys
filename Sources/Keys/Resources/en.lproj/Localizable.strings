@@ -321,3 +321,9 @@
 "Ver como .env" = "Show as .env";
 "Mostrar os valores secretos" = "Show secret values";
 "Ocultar os valores secretos" = "Hide secret values";
+"# Vazio. Use o lápis para escrever as variáveis." = "# Empty. Use the pencil to write the variables.";
+"Editar como texto (mostra os valores secretos)" = "Edit as text (shows secret values)";
+"Uma variável por linha, como CHAVE=valor. Linhas com # são ignoradas." = "One variable per line, as KEY=value. Lines starting with # are ignored.";
+"A linha %lld não é CHAVE=valor." = "Line %lld isn't KEY=value.";
+"As linhas %@ não são CHAVE=valor." = "Lines %@ aren't KEY=value.";
+"%lld novas, %lld atualizadas, %lld removidas" = "%lld new, %lld updated, %lld removed";

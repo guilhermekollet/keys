@@ -19,8 +19,14 @@ struct EnvironmentSection: View {
             let visible = environment.variables.filter { $0.matches(query) }
             VStack(alignment: .leading, spacing: 8) {
                 header(environment)
-                if !visible.isEmpty && asDotEnv {
-                    DotEnvView(variables: visible, dotEnv: environment.dotEnv)
+                if asDotEnv && (!visible.isEmpty || !searching) {
+                    DotEnvView(variables: visible, dotEnv: environment.dotEnv, canEdit: !searching) { text in
+                        var result = (added: 0, updated: 0, removed: 0)
+                        update { result = $0.replaceVariables(with: DotEnv.parse(text)) }
+                        if result != (0, 0, 0) {
+                            show(localized("\(result.added) novas, \(result.updated) atualizadas, \(result.removed) removidas"))
+                        }
+                    }
                 } else if !visible.isEmpty {
                     Card {
                         VStack(spacing: 0) {
@@ -242,37 +248,71 @@ struct ViewModePicker: View {
 
 /// An environment as its `.env` file reads: numbered lines, keys, values and the "=" between
 /// them in their own colors, as a code editor shows it. Secret values stay masked until asked;
-/// copying takes the real file.
+/// copying takes the real file. The pencil turns it into the file's text to edit, real values and
+/// all; saving makes the environment what the text says.
 struct DotEnvView: View {
     let variables: [Variable]
-    /// The whole environment as a file, for copying.
+    /// The whole environment as a file, for copying and as the text to edit.
     let dotEnv: String
+    /// Off while searching: the lines shown are then only some of the environment.
+    var canEdit = true
+    /// Opens on the text, for the screenshots `--snapshot` takes.
+    var startsEditing = false
+    let save: (String) -> Void
     @State private var revealed = false
     @State private var copied = false
+    @State private var editing = false
+    @State private var draft = ""
+    @State private var problem: String?
+    @FocusState private var editorFocused: Bool
 
     private var hasSecrets: Bool {
         variables.contains { $0.isSecret && !$0.value.isEmpty }
     }
 
     var body: some View {
-        let lines = DotEnv.displayLines(variables, revealing: revealed)
-        HStack(alignment: .top, spacing: 0) {
-            VStack(alignment: .trailing, spacing: 3) {
-                ForEach(lines.indices, id: \.self) { index in
-                    Text("\(index + 1)")
-                        .foregroundStyle(Theme.paper.opacity(0.28))
-                }
+        Group {
+            if editing {
+                editor
+            } else {
+                reader
             }
-            .padding(.trailing, 14)
-            .accessibilityHidden(true)
-            ScrollView(.horizontal, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 3) {
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.paper.opacity(0.035), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(editing ? Theme.paper.opacity(0.22) : Theme.hairline))
+        .onAppear {
+            if startsEditing {
+                draft = dotEnv
+                editing = true
+            }
+        }
+    }
+
+    private var reader: some View {
+        let lines = DotEnv.displayLines(variables, revealing: revealed)
+        return HStack(alignment: .top, spacing: 0) {
+            if lines.isEmpty {
+                Text(localized("# Vazio. Use o lápis para escrever as variáveis."))
+                    .foregroundStyle(Theme.paper.opacity(0.35))
+            } else {
+                VStack(alignment: .trailing, spacing: 3) {
                     ForEach(lines.indices, id: \.self) { index in
-                        Text(Self.highlighted(lines[index]))
-                            .fixedSize()
+                        Text("\(index + 1)")
+                            .foregroundStyle(Theme.paper.opacity(0.28))
                     }
                 }
-                .textSelection(.enabled)
+                .padding(.trailing, 14)
+                .accessibilityHidden(true)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        ForEach(lines.indices, id: \.self) { index in
+                            Text(Self.highlighted(lines[index]))
+                                .fixedSize()
+                        }
+                    }
+                    .textSelection(.enabled)
+                }
             }
             Spacer(minLength: 0)
         }
@@ -280,10 +320,7 @@ struct DotEnvView: View {
         .lineSpacing(2)
         .padding(.vertical, 12)
         .padding(.leading, 14)
-        .padding(.trailing, 70)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.paper.opacity(0.035), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Theme.hairline))
+        .padding(.trailing, 100)
         .overlay(alignment: .topTrailing) {
             HStack(spacing: 2) {
                 if hasSecrets {
@@ -291,17 +328,75 @@ struct DotEnvView: View {
                         revealed.toggle()
                     }
                 }
-                IconButton(symbol: copied ? "checkmark" : "doc.on.doc", help: localized("Copiar como .env"), color: copied ? Theme.accent : Theme.paper.opacity(0.7)) {
-                    Clipboard.copy(dotEnv, secret: true)
-                    copied = true
-                    Task {
-                        try? await Task.sleep(for: .seconds(1.2))
-                        copied = false
+                if !lines.isEmpty {
+                    IconButton(symbol: copied ? "checkmark" : "doc.on.doc", help: localized("Copiar como .env"), color: copied ? Theme.accent : Theme.paper.opacity(0.7)) {
+                        Clipboard.copy(dotEnv, secret: true)
+                        copied = true
+                        Task {
+                            try? await Task.sleep(for: .seconds(1.2))
+                            copied = false
+                        }
+                    }
+                }
+                if canEdit {
+                    IconButton(symbol: "pencil", help: localized("Editar como texto (mostra os valores secretos)")) {
+                        draft = dotEnv
+                        problem = nil
+                        editing = true
+                        editorFocused = true
                     }
                 }
             }
             .padding(8)
         }
+    }
+
+    private var editor: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            TextEditor(text: $draft)
+                .font(.system(size: 12.5, design: .monospaced))
+                .lineSpacing(2)
+                .scrollContentBackground(.hidden)
+                .autocorrectionDisabled()
+                .focused($editorFocused)
+                // About as tall as the lines, with room to add a few, up to a screenful.
+                .frame(height: min(max(CGFloat(draft.split(separator: "\n", omittingEmptySubsequences: false).count + 2) * 19, 120), 420))
+                .onChange(of: draft) { problem = nil }
+            HStack(spacing: 8) {
+                if let problem {
+                    Label(problem, systemImage: "exclamationmark.triangle")
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(Theme.color(.amber))
+                } else {
+                    Text(localized("Uma variável por linha, como CHAVE=valor. Linhas com # são ignoradas."))
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(Theme.muted)
+                }
+                Spacer(minLength: 8)
+                Button(localized("Cancelar")) { editing = false }
+                    .buttonStyle(PillButtonStyle(prominent: false))
+                    .keyboardShortcut(.cancelAction)
+                Button(localized("Salvar"), action: commit)
+                    .buttonStyle(PillButtonStyle())
+                    .keyboardShortcut("s", modifiers: .command)
+            }
+        }
+        .padding(10)
+    }
+
+    /// Saves the text unless a line isn't a variable: that would be dropped, so it's pointed out instead.
+    private func commit() {
+        let invalid = DotEnv.invalidLines(draft)
+        if invalid.count == 1, let line = invalid.first {
+            problem = localized("A linha \(line) não é CHAVE=valor.")
+            return
+        }
+        if !invalid.isEmpty {
+            problem = localized("As linhas \(invalid.map(String.init).joined(separator: ", ")) não são CHAVE=valor.")
+            return
+        }
+        save(draft)
+        editing = false
     }
 
     /// A line in an editor's colors: the key, a quiet "=", and the value, quoted ones in the

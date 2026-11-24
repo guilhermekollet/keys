@@ -321,3 +321,9 @@
 "Ver como .env" = "Ver como .env";
 "Mostrar os valores secretos" = "Mostrar los valores secretos";
 "Ocultar os valores secretos" = "Ocultar los valores secretos";
+"# Vazio. Use o lápis para escrever as variáveis." = "# Vacío. Usa el lápiz para escribir las variables.";
+"Editar como texto (mostra os valores secretos)" = "Editar como texto (muestra los valores secretos)";
+"Uma variável por linha, como CHAVE=valor. Linhas com # são ignoradas." = "Una variable por línea, como CLAVE=valor. Las líneas con # se ignoran.";
+"A linha %lld não é CHAVE=valor." = "La línea %lld no es CLAVE=valor.";
+"As linhas %@ não são CHAVE=valor." = "Las líneas %@ no son CLAVE=valor.";
+"%lld novas, %lld atualizadas, %lld removidas" = "%lld nuevas, %lld actualizadas, %lld eliminadas";

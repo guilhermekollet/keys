@@ -146,4 +146,66 @@ struct DotEnvTests {
         ], revealing: false)
         #expect(lines == [DotEnv.DisplayLine(key: "EMPTY_SECRET", value: "", masked: false)])
     }
+
+    // MARK: Edited as a file
+
+    @Test func findsLinesThatAreNotVariables() {
+        let text = """
+        # Database
+        DATABASE_URL=postgres://localhost/app
+
+        MY KEY=1
+        just words
+        1BAD=x
+        export PORT=3000
+        """
+        #expect(DotEnv.invalidLines(text) == [4, 5, 6])
+    }
+
+    @Test func linesInsideAQuotedValueAreNotMistakes() {
+        let text = """
+        PRIVATE_KEY="-----BEGIN KEY-----
+        abc def
+        -----END KEY-----"
+        NAME='a "quoted" word'
+        ESCAPED="say \\"hi\\" there"
+        after the quote
+        """
+        #expect(DotEnv.invalidLines(text) == [6])
+    }
+
+    @Test func editingKeepsEachVariableAndWhetherItIsSecret() {
+        var environment = EnvironmentSet(name: "production")
+        environment.variables = [
+            Variable(key: "PORT", value: "3000"),
+            Variable(key: "API_KEY", value: "old", isSecret: true),
+            Variable(key: "GONE", value: "x"),
+        ]
+        let before = environment.variables
+        let result = environment.replaceVariables(with: DotEnv.parse("API_KEY=new\nPORT=3000\nSESSION_SECRET=s\n"))
+        #expect(result.added == 1 && result.updated == 1 && result.removed == 1)
+        #expect(environment.variables.map(\.key) == ["API_KEY", "PORT", "SESSION_SECRET"])
+        #expect(environment.variables[0].id == before[1].id)
+        #expect(environment.variables[0].isSecret)
+        #expect(environment.variables[0].value == "new")
+        #expect(environment.variables[1].id == before[0].id)
+        #expect(environment.variables[2].isSecret)
+    }
+
+    @Test func editingKeepsTheLastOfARepeatedKeyAndUnnamedRows() {
+        var environment = EnvironmentSet(name: "development")
+        environment.variables = [Variable(key: "", value: "draft"), Variable(key: "MODE", value: "a")]
+        environment.replaceVariables(with: DotEnv.parse("MODE=b\nMODE=c\n"))
+        #expect(environment.variables.map(\.key) == ["MODE", ""])
+        #expect(environment.variables.map(\.value) == ["c", "draft"])
+    }
+
+    @Test func anEditedFileReadsBackTheSame() {
+        var environment = EnvironmentSet(name: "development")
+        environment.variables = [Variable(key: "A", value: "it's \"x\""), Variable(key: "B", value: "line\nbreak")]
+        let text = environment.dotEnv
+        #expect(DotEnv.invalidLines(text).isEmpty)
+        let result = environment.replaceVariables(with: DotEnv.parse(text))
+        #expect(result.added == 0 && result.updated == 0 && result.removed == 0)
+    }
 }

@@ -123,6 +123,40 @@ extension EnvironmentSet {
         return (added, updated)
     }
 
+    /// Makes the set what `entries` (an edited .env file) say, in their order: a key it already had
+    /// keeps its variable (and whether it's secret) with the new value, a new key is added and
+    /// marked secret when its name suggests one, and a key no longer there is removed. When the
+    /// text repeats a key, the last value wins, as dotenv loaders do. Variables still without a
+    /// name aren't in the text, so they stay, at the end.
+    @discardableResult
+    mutating func replaceVariables(with entries: [DotEnv.Entry]) -> (added: Int, updated: Int, removed: Int) {
+        var order: [String] = []
+        var values: [String: String] = [:]
+        for entry in entries {
+            if values[entry.key] == nil { order.append(entry.key) }
+            values[entry.key] = entry.value
+        }
+        var added = 0
+        var updated = 0
+        var result: [Variable] = order.map { key in
+            let value = values[key] ?? ""
+            if var variable = variables.first(where: { $0.key == key }) {
+                if variable.value != value {
+                    variable.value = value
+                    updated += 1
+                }
+                return variable
+            }
+            added += 1
+            return Variable(key: key, value: value, isSecret: Variable.looksSecret(key))
+        }
+        let named = variables.filter { !$0.key.isEmpty }
+        let removed = named.filter { values[$0.key] == nil }.count
+        result += variables.filter { $0.key.isEmpty }
+        variables = result
+        return (added, updated, removed)
+    }
+
     var dotEnv: String {
         DotEnv.format(variables.filter { !$0.key.isEmpty }.map { DotEnv.Entry(key: $0.key, value: $0.value) })
     }
