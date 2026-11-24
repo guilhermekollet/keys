@@ -2,7 +2,7 @@ import SwiftUI
 
 /// What the project's list shows: everything, or one kind of item.
 enum ProjectSection: String, CaseIterable, Identifiable {
-    case all, credentials, variables, links
+    case all, credentials, variables, links, context
     var id: Self { self }
 
     var title: String {
@@ -11,12 +11,13 @@ enum ProjectSection: String, CaseIterable, Identifiable {
         case .credentials: localized("Acessos")
         case .variables: localized("Variáveis")
         case .links: localized("Links")
+        case .context: localized("Contexto")
         }
     }
 }
 
-/// One project: its name on top, its context pinned under it, then a single list of its accesses,
-/// variables and links, filtered and searchable.
+/// One project: its name on top, then a single list of its accesses, variables and links, filtered
+/// and searchable, and its context in a tab of its own.
 struct ProjectView: View {
     static let contentWidth: CGFloat = 860
     @Binding var project: Project
@@ -30,9 +31,6 @@ struct ProjectView: View {
             ProjectHeader(project: $project)
                 .padding(.horizontal, 24)
                 .padding(.top, 22)
-            ContextCard(project: $project)
-                .padding(.horizontal, 20)
-                .padding(.top, 14)
             ProjectItemsView(project: $project, editing: $editing, deletingCredential: $deletingCredential, moveCredential: move)
                 // Whatever the list holds, it fits the room left and never makes the window's
                 // content taller than the window (which pushed the sidebar and the header off
@@ -296,11 +294,10 @@ struct ProjectHeader: View {
     }
 }
 
-/// Where the code is and the free text that explains the project, pinned above the list. It folds
-/// down to one line, showing the start of the text, to leave the room to the list.
-struct ContextCard: View {
+/// Where the code is and the free text that explains the project, in the Context tab: the folder on
+/// this Mac with ways to open it, and a tall editor for how to run, deploy and pick the project up.
+struct ContextEditor: View {
     @Binding var project: Project
-    @AppStorage("contextExpanded") private var expanded = true
 
     /// Headings that cover what is usually missing when a project is picked up again.
     static var outline: String {
@@ -310,85 +307,47 @@ struct ContextCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.18)) { expanded.toggle() }
-            } label: {
-                HStack(spacing: 7) {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(Theme.paper.opacity(0.45))
-                        .rotationEffect(.degrees(expanded ? 90 : 0))
-                    Text(localized("Contexto"))
-                        .font(.system(size: 12.5, weight: .semibold))
-                    if !expanded {
-                        Text(preview)
-                            .font(.system(size: 12))
-                            .foregroundStyle(Theme.muted)
-                            .lineLimit(1)
-                    }
-                    Spacer(minLength: 0)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 6) {
+                Image(systemName: "folder")
+                    .foregroundStyle(Theme.muted)
+                    .frame(width: 18)
+                TextField(localized("Pasta do projeto neste Mac"), text: $project.localPath)
+                    .textFieldStyle(.code)
+                Button(localized("Escolher…"), action: chooseFolder)
+                    .buttonStyle(PillButtonStyle(prominent: false))
+                IconButton(symbol: "folder.badge.gearshape", help: localized("Abrir no Finder")) {
+                    if let folderURL { NSWorkspace.shared.open(folderURL) }
                 }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help(expanded ? localized("Recolher o contexto") : localized("Mostrar o contexto"))
-
-            if expanded {
-                HStack(spacing: 6) {
-                    Image(systemName: "folder")
-                        .foregroundStyle(Theme.muted)
-                        .frame(width: 18)
-                    TextField(localized("Pasta do projeto neste Mac"), text: $project.localPath)
-                        .textFieldStyle(.code)
-                    Button(localized("Escolher…"), action: chooseFolder)
-                        .buttonStyle(PillButtonStyle(prominent: false))
-                    IconButton(symbol: "folder.badge.gearshape", help: localized("Abrir no Finder")) {
-                        if let folderURL { NSWorkspace.shared.open(folderURL) }
-                    }
+                .disabled(!folderExists)
+                IconButton(symbol: "terminal", help: localized("Abrir no Terminal"), action: openInTerminal)
                     .disabled(!folderExists)
-                    IconButton(symbol: "terminal", help: localized("Abrir no Terminal"), action: openInTerminal)
-                        .disabled(!folderExists)
-                }
-
-                TextEditor(text: $project.context)
-                    .font(.system(size: 13, design: .monospaced))
-                    .lineSpacing(2)
-                    .scrollContentBackground(.hidden)
-                    .padding(6)
-                    .frame(height: 150)
-                    .background(Theme.paper.opacity(0.03), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    // An overlay, not a sibling in a stack: the hint must never decide how tall the
-                    // editor is. Measured as part of the layout, its wrapped text once made the
-                    // whole window taller than the screen for a new, empty project.
-                    .overlay(alignment: .topLeading) {
-                        if project.context.isEmpty {
-                            VStack(alignment: .leading, spacing: 10) {
-                                Text(localized("Tudo o que você vai querer saber quando voltar a este projeto: como rodar, como publicar, onde está cada coisa, por que foi feito assim e com quem falar."))
-                                    .font(.system(size: 12.5))
-                                    .foregroundStyle(Theme.muted)
-                                Button(localized("Começar com um roteiro")) { project.context = Self.outline }
-                                    .buttonStyle(PillButtonStyle())
-                            }
-                            .padding(12)
-                            .frame(maxWidth: 460, alignment: .leading)
-                        }
-                    }
             }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, expanded ? 12 : 9)
-        // Folded, it's a quiet line; open, a card to write in.
-        .background(Theme.surface.opacity(expanded ? 1 : 0.6), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-    }
 
-    /// The first line of the context with words in it, without Markdown's heading marks.
-    private var preview: String {
-        let line = project.context
-            .split(separator: "\n")
-            .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "# ").union(.whitespaces)) }
-            .first { !$0.isEmpty }
-        return line ?? localized("Vazio")
+            TextEditor(text: $project.context)
+                .font(.system(size: 13, design: .monospaced))
+                .lineSpacing(3)
+                .scrollContentBackground(.hidden)
+                .padding(10)
+                .frame(height: 420)
+                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                // An overlay, not a sibling in a stack: the hint must never decide how tall the
+                // editor is. Measured as part of the layout, its wrapped text once made the
+                // whole window taller than the screen for a new, empty project.
+                .overlay(alignment: .topLeading) {
+                    if project.context.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(localized("Tudo o que você vai querer saber quando voltar a este projeto: como rodar, como publicar, onde está cada coisa, por que foi feito assim e com quem falar."))
+                                .font(.system(size: 12.5))
+                                .foregroundStyle(Theme.muted)
+                            Button(localized("Começar com um roteiro")) { project.context = Self.outline }
+                                .buttonStyle(PillButtonStyle())
+                        }
+                        .padding(14)
+                        .frame(maxWidth: 460, alignment: .leading)
+                    }
+                }
+        }
     }
 
     private var folderURL: URL? {

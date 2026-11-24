@@ -290,9 +290,6 @@
 "Duplicar" = "Duplicar";
 "Apagar…" = "Borrar…";
 "Importar, exportar e organizar o ambiente" = "Importar, exportar y organizar el entorno";
-"Recolher o contexto" = "Plegar el contexto";
-"Mostrar o contexto" = "Mostrar el contexto";
-"Vazio" = "Vacío";
 "Trocar o ícone" = "Cambiar el icono";
 "Fechar" = "Cerrar";
 "Usar o do tipo" = "Usar el del tipo";
@@ -334,3 +331,4 @@
 "A linha %lld não é CHAVE=valor." = "La línea %lld no es CLAVE=valor.";
 "As linhas %@ não são CHAVE=valor." = "Las líneas %@ no son CLAVE=valor.";
 "%lld novas, %lld atualizadas, %lld removidas" = "%lld nuevas, %lld actualizadas, %lld eliminadas";
+"Preenchido" = "Con contenido";

@@ -290,9 +290,6 @@
 "Duplicar" = "Duplicate";
 "Apagar…" = "Delete…";
 "Importar, exportar e organizar o ambiente" = "Import, export and organize the environment";
-"Recolher o contexto" = "Fold the context";
-"Mostrar o contexto" = "Show the context";
-"Vazio" = "Empty";
 "Trocar o ícone" = "Change the icon";
 "Fechar" = "Close";
 "Usar o do tipo" = "Use the kind's";
@@ -334,3 +331,4 @@
 "A linha %lld não é CHAVE=valor." = "Line %lld isn't KEY=value.";
 "As linhas %@ não são CHAVE=valor." = "Lines %@ aren't KEY=value.";
 "%lld novas, %lld atualizadas, %lld removidas" = "%lld new, %lld updated, %lld removed";
+"Preenchido" = "Filled in";
