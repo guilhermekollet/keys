@@ -894,3 +894,20 @@ final class FakeMac {
         try? FileManager.default.removeItem(at: root)
     }
 }
+
+// MARK: The last backup's date
+
+/// What `Preferences.lastBackup` reads after the date is stored as `stored` ("date", "seconds"
+/// or "none"), in throwaway defaults, as seconds since 2001 (nil when it finds none).
+func lastBackupSeconds(storedAs stored: String) -> Double? {
+    let suite = "keys.tests.last-backup.\(UUID().uuidString)"
+    guard let defaults = UserDefaults(suiteName: suite) else { return nil }
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let when = Date(timeIntervalSinceReferenceDate: 800_000_000)
+    switch stored {
+    case "date": defaults.set(when, forKey: Preferences.lastBackupKey)
+    case "seconds": Preferences.recordBackup(at: when, in: defaults)
+    default: break
+    }
+    return Preferences.lastBackup(in: defaults)?.timeIntervalSinceReferenceDate
+}

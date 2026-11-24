@@ -10,6 +10,20 @@ enum Preferences {
     static let lastBackupKey = "lastBackupAt"
     static let appearanceKey = "appearance"
 
+    /// When the last backup was exported, or nil if none was. It is written as seconds since 2001
+    /// (what `@AppStorage` reads as a number); builds before kept a date there, which still counts.
+    static func lastBackup(in defaults: UserDefaults = .standard) -> Date? {
+        switch defaults.object(forKey: lastBackupKey) {
+        case let date as Date: date
+        case let seconds as Double where seconds > 0: Date(timeIntervalSinceReferenceDate: seconds)
+        default: nil
+        }
+    }
+
+    static func recordBackup(at date: Date = Date(), in defaults: UserDefaults = .standard) {
+        defaults.set(date.timeIntervalSinceReferenceDate, forKey: lastBackupKey)
+    }
+
     /// Light or dark, or whichever the Mac is in.
     enum Appearance: String, CaseIterable, Identifiable {
         case system, light, dark
