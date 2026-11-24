@@ -188,15 +188,19 @@ struct ProjectItemsView: View {
         }
     }
 
+    /// A kind of item under its name. The name only shows with everything listed: with one kind
+    /// picked, the chip above already says it.
     private func section<Content: View>(_ title: String, count: Int, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
-                Text(title)
-                    .font(.system(size: 13, weight: .semibold))
-                if count > 0 {
-                    Text("\(count)")
-                        .font(.system(size: 11.5).monospacedDigit())
-                        .foregroundStyle(Theme.muted)
+            if filter == .all {
+                HStack(spacing: 6) {
+                    Text(title)
+                        .font(.system(size: 13, weight: .semibold))
+                    if count > 0 {
+                        Text("\(count)")
+                            .font(.system(size: 11.5).monospacedDigit())
+                            .foregroundStyle(Theme.muted)
+                    }
                 }
             }
             content()
