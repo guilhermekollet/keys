@@ -948,3 +948,15 @@ func recoveryCodesFromOldVault() -> [String] {
     let json = #"{"projects":[{"name":"Old","credentials":[{"title":"Mail","password":"x"}]}]}"#
     return (try? Vault.decode(Data(json.utf8)))?.projects.first?.credentials.first?.recoveryCodes.map(\.code) ?? ["failed"]
 }
+
+// MARK: The sidebar's order
+
+/// Projects' positions after a trip through the vault file, as "name:position" or "name:none".
+func positionsAfterSaving() -> [String] {
+    var a = Project(name: "A"); a.position = 1
+    var b = Project(name: "B"); b.position = 0
+    let c = Project(name: "C")
+    guard let data = try? Vault.encode(VaultContents(projects: [b, a, c])),
+          let read = try? Vault.decode(data).projects else { return ["failed"] }
+    return read.map { "\($0.name):\($0.position.map { "\($0)" } ?? "none")" }
+}

@@ -32,6 +32,9 @@ struct Project: Codable, Identifiable, Hashable {
     var tint = Tint.lavender
     /// How its icon is drawn: in thin lines, in bold lines, or filled.
     var iconStyle = IconStyle.line
+    /// Where it sits among the projects beside it, once they were put in an order by dragging;
+    /// nil keeps it after those, by name.
+    var position: Double?
 
     var isArchived: Bool { archivedAt != nil }
 
@@ -211,12 +214,65 @@ extension EnvironmentSet {
 /// question about the tree goes through here, so a parent that no longer exists, or a loop the
 /// vault somehow ended up with, never hides a project: it is simply shown at the top level.
 enum ProjectTree {
-    /// The projects directly inside `parent`, by name; `nil` gives the top level.
+    /// The projects directly inside `parent`, in their order; `nil` gives the top level.
     static func children(of parent: Project.ID?, in projects: [Project]) -> [Project] {
         projects
             // A project in a loop is shown at the top level only, so walking down the tree always ends.
             .filter { parent == nil ? isTopLevel($0, in: projects) : $0.parentID == parent && !isTopLevel($0, in: projects) }
-            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+            .sorted(by: inOrder)
+    }
+
+    /// The order of projects side by side: those put in order by dragging first, by their
+    /// position; the rest after them, by name.
+    static func inOrder(_ a: Project, _ b: Project) -> Bool {
+        switch (a.position, b.position) {
+        case let (x?, y?) where x != y: x < y
+        case (_?, nil): true
+        case (nil, _?): false
+        default: a.name.localizedStandardCompare(b.name) == .orderedAscending
+        }
+    }
+
+    /// A line of the sidebar's tree: the project, how deep it is, and the list it is in (the
+    /// parent whose subprojects it is among; nil for the top of the sidebar).
+    struct Row: Identifiable, Equatable {
+        let project: Project
+        let depth: Int
+        let group: Project.ID?
+        let hasChildren: Bool
+        var id: Project.ID { project.id }
+    }
+
+    /// The sidebar's lines from the top: projects in use, each followed by its subprojects when
+    /// it is in `unfolded`.
+    static func visibleRows(unfolded: Set<Project.ID>, in projects: [Project]) -> [Row] {
+        var rows: [Row] = []
+        func walk(_ project: Project, depth: Int, group: Project.ID?) {
+            let children = children(of: project.id, in: projects).filter { !$0.isArchived }
+            rows.append(Row(project: project, depth: depth, group: group, hasChildren: !children.isEmpty))
+            guard unfolded.contains(project.id) else { return }
+            children.forEach { walk($0, depth: depth + 1, group: project.id) }
+        }
+        roots(archived: false, in: projects).forEach { walk($0, depth: 0, group: nil) }
+        return rows
+    }
+
+    /// `projects` after the line at `source` of `rows` is dropped before the line at
+    /// `destination` (or at the end). It moves only among the projects of its own list, to the
+    /// place among them nearest the drop; its subprojects go with it. Those projects are given
+    /// positions in their new order, so it lasts.
+    static func moving(_ source: Int, to destination: Int, in rows: [Row], projects: [Project]) -> [Project] {
+        guard rows.indices.contains(source) else { return projects }
+        let moved = rows[source]
+        var siblings = rows.filter { $0.group == moved.group }.map(\.id)
+        let slot = rows.prefix(max(0, min(destination, rows.count))).filter { $0.group == moved.group && $0.id != moved.id }.count
+        siblings.removeAll { $0 == moved.id }
+        siblings.insert(moved.id, at: min(slot, siblings.count))
+        var projects = projects
+        for (index, id) in siblings.enumerated() {
+            if let i = projects.firstIndex(where: { $0.id == id }) { projects[i].position = Double(index) }
+        }
+        return projects
     }
 
     /// Whether `project` is shown at the top level: it has no parent, its parent is gone, or
@@ -290,7 +346,7 @@ enum ProjectTree {
                 guard !isTopLevel(project, in: projects), let parent = projects.first(where: { $0.id == project.parentID }) else { return true }
                 return parent.isArchived != archived
             }
-            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+            .sorted(by: inOrder)
     }
 
     /// `projects` without `id` and everything inside it: deleting an archived group for good takes
@@ -497,6 +553,7 @@ extension Project {
         tint = (try? container.value(.tint, or: Tint.lavender)) ?? .lavender
         // Missing in vaults from before icon styles, and unknown if a later build adds one.
         iconStyle = (try? container.value(.iconStyle, or: IconStyle.line)) ?? .line
+        position = try? container.decodeIfPresent(Double.self, forKey: .position)
         // Vaults from before archiving had a status instead; only "archived" carries over.
         if archivedAt == nil, (try? decoder.container(keyedBy: LegacyKeys.self).decodeIfPresent(String.self, forKey: .status)) == "archived" {
             archivedAt = updatedAt
