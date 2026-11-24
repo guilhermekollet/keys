@@ -138,6 +138,56 @@ struct VaultFile: Codable, Equatable {
         try encoder.encode(self).write(to: url, options: .atomic)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
+
+    /// Runs `body` while no other copy of Keys is changing the vault in `folder`, so checking the
+    /// file and then writing it is one step among them. The lock is on the folder itself, with
+    /// nothing to clean up: macOS lets go of it when the process ends. `body` can't take it again.
+    static func withFolderLocked<T>(_ folder: URL, _ body: () throws -> T) throws -> T {
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        let descriptor = Darwin.open(folder.path, O_RDONLY | O_CLOEXEC)
+        guard descriptor >= 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
+        defer { _ = Darwin.close(descriptor) }
+        // Not waiting forever: locking the vault when the Mac sleeps goes through here.
+        let deadline = Date().addingTimeInterval(2)
+        while flock(descriptor, LOCK_EX | LOCK_NB) != 0 {
+            let failure = errno
+            // A disk without locks: the check before each write still stands.
+            if failure == ENOTSUP { break }
+            guard failure == EWOULDBLOCK || failure == EINTR, Date() < deadline else {
+                throw NSError(domain: NSPOSIXErrorDomain, code: Int(failure))
+            }
+            usleep(5_000)
+        }
+        return try body()
+    }
+
+    /// Writes a file that must not be there yet, whole or not at all, and throws `vaultExists`
+    /// if there is one. FileManager's move won't do: when two race, both can succeed.
+    func writeNew(to url: URL) throws {
+        let draft = url.deletingLastPathComponent().appendingPathComponent(".\(UUID().uuidString).tmp")
+        defer { try? FileManager.default.removeItem(at: draft) }
+        try write(to: draft)
+        let failure = draft.path.withCString { from in
+            url.path.withCString { to in renamex_np(from, to, UInt32(RENAME_EXCL)) == 0 ? 0 : errno }
+        }
+        switch failure {
+        case 0:
+            return
+        case EEXIST:
+            throw VaultError.vaultExists
+        case ENOTSUP:
+            // A disk without exclusive renames (some network and external ones): still exclusive,
+            // though no longer all at once.
+            do {
+                try Data(contentsOf: draft).write(to: url, options: .withoutOverwriting)
+            } catch CocoaError.fileWriteFileExists {
+                throw VaultError.vaultExists
+            }
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        default:
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(failure))
+        }
+    }
 }
 
 enum VaultError: LocalizedError, Equatable {
@@ -146,7 +196,9 @@ enum VaultError: LocalizedError, Equatable {
     case otherDeviceKey
     case damaged
     case missingDeviceKey
+    case unusableDeviceKey
     case noSecureEnclave
+    case vaultExists
 
     var errorDescription: String? {
         switch self {
@@ -159,9 +211,13 @@ enum VaultError: LocalizedError, Equatable {
         case .damaged:
             localized("O arquivo do cofre está danificado ou foi alterado.")
         case .missingDeviceKey:
-            localized("A chave deste Mac não está no Keychain, então o cofre não pode ser aberto aqui.")
+            localized("A chave deste cofre não está no Keychain deste Mac, então ele não pode ser aberto aqui. Se ele veio de outro Mac, importe um backup feito lá.")
+        case .unusableDeviceKey:
+            localized("A chave deste cofre está no Keychain, mas o Secure Enclave deste Mac não a aceita. Se o cofre veio de outro Mac, importe um backup feito lá.")
         case .noSecureEnclave:
             localized("Este Mac não tem Secure Enclave, que o Chaves usa para guardar a chave do cofre.")
+        case .vaultExists:
+            localized("Já existe um cofre nesta pasta, e nada foi sobrescrito. Destranque-o para continuar.")
         }
     }
 }

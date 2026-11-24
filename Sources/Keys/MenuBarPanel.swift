@@ -100,6 +100,13 @@ struct MenuBarPanel: View {
             Text(vault.state == .new ? localized("Crie o cofre para começar.") : localized("O cofre está trancado."))
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.muted)
+            // The main window may be closed when a save finds the vault changed, and locks.
+            if let keptAside = vault.keptAside {
+                Text(keptAside)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if vault.state == .locked {
                 Button {
                     Task { await vault.unlock() }

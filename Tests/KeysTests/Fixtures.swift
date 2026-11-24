@@ -5,6 +5,8 @@
 import AppKit
 import CryptoKit
 import Foundation
+import LocalAuthentication
+import Security
 @testable import Keys
 
 // MARK: Vault file
@@ -649,4 +651,246 @@ func exportRefusesSymlink() -> (refused: Bool, targetUntouched: Bool) {
     let refused = (try? DotEnv.write("SECRET=1\n", to: link)) == nil
     let untouched = (try? String(contentsOf: target, encoding: .utf8)) == "KEEP=1\n"
     return (refused, untouched)
+}
+
+// MARK: Device keys
+
+/// Ways the Keychain can refuse an item that is there.
+enum KeychainFailure: CaseIterable {
+    case locked, denied, cancelled, noAccess, unreadableData
+
+    var status: OSStatus {
+        switch self {
+        case .locked: errSecInteractionNotAllowed
+        case .denied: errSecAuthFailed
+        case .cancelled: errSecUserCanceled
+        case .noAccess: errSecMissingEntitlement
+        // Found by its attributes, then not found when its data is asked for.
+        case .unreadableData: errSecItemNotFound
+        }
+    }
+}
+
+/// A Keychain in memory. Like the real one it refuses a second item with the same service and
+/// account, and it notes every item it was asked about.
+final class FakeKeychain: KeychainItems {
+    private(set) var items: [String: Data] = [:]
+    private(set) var asked: [String] = []
+    private(set) var added: [String] = []
+    /// What looking an item up fails with, data or not.
+    var lookupFailure: KeychainFailure?
+    /// What reading an item's data fails with, once it was found.
+    var readFailure: KeychainFailure?
+    var refusesNewItems = false
+
+    private func name(_ query: [String: Any]) -> String {
+        let service = query[kSecAttrService as String] as? String ?? "*"
+        let account = query[kSecAttrAccount as String] as? String ?? "*"
+        return "\(service)/\(account)"
+    }
+
+    func put(_ data: Data, service: String, account: String) {
+        items["\(service)/\(account)"] = data
+    }
+
+    func take(_ name: String) -> Data? { items.removeValue(forKey: name) }
+
+    func putBack(_ data: Data?, as name: String) { items[name] = data }
+
+    func copyMatching(_ query: [String: Any]) -> (status: OSStatus, result: Any?) {
+        let name = name(query)
+        asked.append(name)
+        if let lookupFailure { return (lookupFailure.status, nil) }
+        guard let data = items[name] else { return (errSecItemNotFound, nil) }
+        guard query[kSecReturnData as String] != nil else { return (errSecSuccess, [String: Any]()) }
+        if let readFailure { return (readFailure.status, nil) }
+        return (errSecSuccess, data)
+    }
+
+    func add(_ item: [String: Any]) -> OSStatus {
+        let name = name(item)
+        if refusesNewItems { return errSecInteractionNotAllowed }
+        guard items[name] == nil, let data = item[kSecValueData as String] as? Data else { return errSecDuplicateItem }
+        items[name] = data
+        added.append(name)
+        return errSecSuccess
+    }
+}
+
+/// Software keys standing in for the Secure Enclave's: no Touch ID, nothing stored.
+final class FakeEnclave: KeyEnclave {
+    enum Failure { case badHandle, busy, cancelled }
+    var failure: Failure?
+
+    func makeKey() throws -> (handle: Data, key: AgreementKey) {
+        let key = P256.KeyAgreement.PrivateKey()
+        return (key.rawRepresentation, key)
+    }
+
+    func publicKey(of handle: Data) throws -> Data {
+        if failure == .badHandle { throw VaultError.unusableDeviceKey }
+        if failure == .busy { throw NSError(domain: "KeysTests", code: 1) }
+        return try P256.KeyAgreement.PrivateKey(rawRepresentation: handle).publicKey.x963Representation
+    }
+
+    func unlock(_ handle: Data, reason: String) async throws -> AgreementKey {
+        if failure == .cancelled { throw LAError(.userCancel) }
+        return try P256.KeyAgreement.PrivateKey(rawRepresentation: handle)
+    }
+}
+
+/// A Mac made up for a test: its Keychain, its Secure Enclave and vault folders in a temporary
+/// place. Nothing in it reaches the real Keychain or the real vault.
+@MainActor
+final class FakeMac {
+    enum Folder: String {
+        case standard = "Keys"
+        case standardInOtherCase = "KEYS"
+        case standardThroughLink = "Link"
+        case custom = "keys-dev"
+        case otherCustom = "keys-dev-2"
+    }
+
+    let keychain = FakeKeychain()
+    let enclave = FakeEnclave()
+    private let root = FileManager.default.temporaryDirectory.appendingPathComponent("keys-mac-\(UUID().uuidString)")
+
+    func url(_ folder: Folder) -> URL { root.appendingPathComponent(folder.rawValue) }
+
+    /// The app launched on `folder`.
+    func launch(_ folder: Folder = .standard) -> Vault {
+        let deviceKey = DeviceKey(directory: url(folder), defaultDirectory: url(.standard), items: keychain, enclave: enclave)
+        return Vault(sample: false, directory: url(folder), deviceKey: deviceKey)
+    }
+
+    /// A vault as earlier versions left it: one item, service "com.guilhermekollet.keys" and
+    /// account "device-key", written out here so a change to the app's constants fails the tests.
+    func installEarlierVersion(holding name: String) throws {
+        let key = P256.KeyAgreement.PrivateKey()
+        keychain.put(key.rawRepresentation, service: "com.guilhermekollet.keys", account: "device-key")
+        let contents = try Vault.encode(VaultContents(projects: [Project(name: name)]))
+        try VaultFile.create(contents, for: key).file.write(to: url(.standard).appendingPathComponent("vault.keys"))
+    }
+
+    func replaceOriginalKey() {
+        keychain.put(P256.KeyAgreement.PrivateKey().rawRepresentation, service: "com.guilhermekollet.keys", account: "device-key")
+    }
+
+    func importBackup(holding name: String, into vault: Vault) async throws {
+        let file = root.appendingPathComponent("\(UUID().uuidString).keys-backup")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let contents = try Vault.encode(VaultContents(projects: [Project(name: name)]))
+        try VaultBackup.seal(contents, password: "correct horse battery", iterations: 2_000).write(to: file)
+        _ = try await vault.importBackup(from: file, password: "correct horse battery")
+    }
+
+    func linkToStandardFolder() throws {
+        try FileManager.default.createSymbolicLink(at: url(.standardThroughLink), withDestinationURL: url(.standard))
+    }
+
+    func move(_ folder: Folder, to other: Folder) throws {
+        try FileManager.default.moveItem(at: url(folder), to: url(other))
+    }
+
+    func files(in folder: Folder = .standard) -> [String] {
+        ((try? FileManager.default.contentsOfDirectory(atPath: url(folder).path)) ?? []).sorted()
+    }
+
+    /// Renames the vault set aside back to vault.keys, replacing the one made after it.
+    func putBackVaultSetAside() throws {
+        let aside = files().first { $0.hasPrefix("vault-unreadable-") } ?? "no vault set aside"
+        let current = url(.standard).appendingPathComponent("vault.keys")
+        if FileManager.default.fileExists(atPath: current.path) { try FileManager.default.removeItem(at: current) }
+        try FileManager.default.moveItem(at: url(.standard).appendingPathComponent(aside), to: current)
+    }
+
+    /// While false, nothing can be written in the default folder, as on a full or read-only disk.
+    func setWritable(_ writable: Bool) throws {
+        try FileManager.default.setAttributes([.posixPermissions: writable ? 0o700 : 0o500], ofItemAtPath: url(.standard).path)
+    }
+
+    /// `count` automatic copies of the vault as it is now, from days of `year`, oldest first.
+    func addCopies(_ count: Int, year: Int) throws {
+        let folder = url(.standard).appendingPathComponent("Backups")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        for day in 1...count {
+            let copy = folder.appendingPathComponent(String(format: "vault-%04d01%02d-120000.keys", year, day))
+            try FileManager.default.copyItem(at: url(.standard).appendingPathComponent("vault.keys"), to: copy)
+        }
+    }
+
+    /// Another copy of the app, or a restore, puts a different vault file in place.
+    func changeVaultOnDisk() throws {
+        let key = P256.KeyAgreement.PrivateKey()
+        try VaultFile.create(Data("other".utf8), for: key).file.write(to: url(.standard).appendingPathComponent("vault.keys"))
+    }
+
+    func vaultBytes() -> [UInt8] {
+        [UInt8]((try? Data(contentsOf: url(.standard).appendingPathComponent("vault.keys"))) ?? Data())
+    }
+
+    /// Opens `name` in the default folder as the vault, the way the README says to.
+    func useAsVault(_ name: String) throws {
+        let current = url(.standard).appendingPathComponent("vault.keys")
+        if FileManager.default.fileExists(atPath: current.path) { try FileManager.default.removeItem(at: current) }
+        try FileManager.default.moveItem(at: url(.standard).appendingPathComponent(name), to: current)
+    }
+
+    func useCopyAsVault(_ name: String) throws {
+        try useAsVault("Backups/\(name)")
+    }
+
+    /// How many of `rounds` races to write the same new vault file had other than one winner,
+    /// and the permissions the files ended with.
+    func racesWithoutOneWinner(rounds: Int) throws -> (bad: Int, permissions: Set<Int>) {
+        let file = try VaultFile.create(Data("new".utf8), for: P256.KeyAgreement.PrivateKey()).file
+        var bad = 0
+        var permissions = Set<Int>()
+        for round in 0..<rounds {
+            let target = url(.standard).appendingPathComponent("race-\(round).keys")
+            let lock = NSLock()
+            var winners = 0
+            DispatchQueue.concurrentPerform(iterations: 8) { _ in
+                guard (try? file.writeNew(to: target)) != nil else { return }
+                lock.lock()
+                winners += 1
+                lock.unlock()
+            }
+            if winners != 1 { bad += 1 }
+            let attributes = try FileManager.default.attributesOfItem(atPath: target.path)
+            permissions.insert((attributes[.posixPermissions] as? NSNumber)?.intValue ?? 0)
+        }
+        return (bad, permissions)
+    }
+
+    func setVaultReadable(_ readable: Bool) throws {
+        try FileManager.default.setAttributes([.posixPermissions: readable ? 0o600 : 0], ofItemAtPath: url(.standard).appendingPathComponent("vault.keys").path)
+    }
+
+    func removeVault() throws {
+        try FileManager.default.removeItem(at: url(.standard).appendingPathComponent("vault.keys"))
+    }
+
+    /// Makes vault.keys a link to the vault kept in another folder, as a synced vault can be.
+    func keepVaultBehindLink() throws {
+        try FileManager.default.createDirectory(at: url(.custom), withIntermediateDirectories: true)
+        let link = url(.standard).appendingPathComponent("vault.keys")
+        let target = url(.custom).appendingPathComponent("vault.keys")
+        try FileManager.default.moveItem(at: link, to: target)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+    }
+
+    /// Runs `body` while something else holds the default folder's lock.
+    func whileFolderIsLocked(_ body: () -> Void) throws {
+        try VaultFile.withFolderLocked(url(.standard), body)
+    }
+
+    func copies() -> [String] {
+        ((try? FileManager.default.contentsOfDirectory(atPath: url(.standard).appendingPathComponent("Backups").path)) ?? []).sorted()
+    }
+
+    func dispose() {
+        try? setWritable(true)
+        try? FileManager.default.removeItem(at: root)
+    }
 }

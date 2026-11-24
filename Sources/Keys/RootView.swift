@@ -10,6 +10,9 @@ struct RootView: View {
                 MainView()
             } else {
                 LockScreen()
+                    // A toolbar with nothing in it: without one macOS draws the short title bar,
+                    // and the window's controls would move each time the vault locks or opens.
+                    .toolbar { ToolbarSpacer(.flexible) }
             }
         }
         .animation(.easeInOut(duration: 0.2), value: vault.state)
@@ -134,12 +137,24 @@ struct LockScreen: View {
             Button {
                 Task { await vault.unlock() }
             } label: {
-                Label(localized("Destrancar com Touch ID"), systemImage: "touchid")
+                if vault.keyAccessFailed {
+                    Label(localized("Tentar de novo"), systemImage: "arrow.clockwise")
+                } else {
+                    Label(localized("Destrancar com Touch ID"), systemImage: "touchid")
+                }
             }
             .buttonStyle(PillButtonStyle(large: true))
             .keyboardShortcut(.defaultAction)
             .disabled(vault.isUnlocking)
             .padding(.top, 28)
+            if vault.hasUnsavedEdits {
+                Text(localized("As últimas alterações ainda não foram salvas. Deixe o Chaves aberto: elas estão criptografadas na memória e ele continua tentando salvar."))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.muted)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 14)
+            }
         case .unreadable(let reason):
             Text(reason)
                 .font(.system(size: 13.5))
@@ -153,7 +168,7 @@ struct LockScreen: View {
                 .padding(.top, 28)
             HStack(spacing: 10) {
                 Button(localized("Mostrar no Finder")) {
-                    NSWorkspace.shared.activateFileViewerSelecting([Vault.fileURL])
+                    NSWorkspace.shared.activateFileViewerSelecting([vault.fileURL])
                 }
                 Button(localized("Começar um cofre novo…")) { confirmingNewVault = true }
             }
@@ -169,9 +184,13 @@ struct LockScreen: View {
 struct MainView: View {
     @EnvironmentObject private var vault: Vault
     @State private var query = ""
+    /// The search field shows under the title bar only after its button (or ⌘F) asks for it.
+    @State private var searchOpen = false
+    @FocusState private var searchFocused: Bool
     @State private var deleting: Project.ID?
-    /// Projects whose subprojects are folded away in the sidebar; everything starts unfolded.
-    @State private var collapsed: Set<Project.ID> = []
+    /// Projects whose subprojects show in the sidebar. Every group starts folded, so the list
+    /// opens short; the open project's groups unfold to show it (see `reveal`).
+    @State private var unfolded: Set<Project.ID> = []
     /// The list starts with the keyboard, as in Mail and Notes; otherwise the project's name
     /// field would, with its text selected, one keystroke away from being replaced.
     @FocusState private var listFocused: Bool
@@ -194,7 +213,13 @@ struct MainView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Theme.ink)
         }
-        .searchable(text: $query, placement: .sidebar, prompt: localized("Buscar em tudo"))
+        // Beside the window's controls, outside the sidebar, so it is still there to bring it back.
+        .background(LeadingTitlebarAccessory {
+            HStack(spacing: 2) {
+                sidebarButton
+                searchButton
+            }
+        })
         // When the list folds away with the keyboard, AppKit hands the keyboard to the next field,
         // the project's name, with its text selected: one stray key would replace the name. So
         // nothing takes it then, and it goes back to the list when the sidebar returns.
@@ -203,6 +228,9 @@ struct MainView: View {
                 DispatchQueue.main.async {
                     NSApp.windows.first { $0.identifier?.rawValue == mainWindowID }?.makeFirstResponder(nil)
                 }
+            } else if searchOpen {
+                // Back for the search (see openSearch): the field takes the keyboard.
+                DispatchQueue.main.async { searchFocused = true }
             } else {
                 DispatchQueue.main.async { listFocused = true }
             }
@@ -257,7 +285,7 @@ struct MainView: View {
         var order: [Project.ID] = []
         func walk(_ project: Project, archived: Bool) {
             order.append(project.id)
-            guard !collapsed.contains(project.id) else { return }
+            guard unfolded.contains(project.id) else { return }
             ProjectTree.children(of: project.id, in: vault.projects).filter { $0.isArchived == archived }.forEach { walk($0, archived: archived) }
         }
         ProjectTree.roots(archived: false, in: vault.projects).forEach { walk($0, archived: false) }
@@ -272,7 +300,7 @@ struct MainView: View {
     private func reveal(_ id: Project.ID?) {
         guard let project = vault.project(id) else { return }
         for ancestor in ProjectTree.ancestors(of: project, in: vault.projects) {
-            collapsed.remove(ancestor.id)
+            unfolded.insert(ancestor.id)
         }
     }
 
@@ -280,8 +308,8 @@ struct MainView: View {
     private func foldOrGoUp() -> KeyPress.Result {
         guard let project = vault.project(vault.selection) else { return .ignored }
         let children = ProjectTree.children(of: project.id, in: vault.projects).filter { !$0.isArchived }
-        if !children.isEmpty, !collapsed.contains(project.id) {
-            withAnimation(.easeInOut(duration: 0.18)) { _ = collapsed.insert(project.id) }
+        if !children.isEmpty, unfolded.contains(project.id) {
+            withAnimation(.easeInOut(duration: 0.18)) { _ = unfolded.remove(project.id) }
         } else if let parent = ProjectTree.ancestors(of: project, in: vault.projects).last {
             vault.selection = parent.id
         }
@@ -293,8 +321,8 @@ struct MainView: View {
         guard let project = vault.project(vault.selection) else { return .ignored }
         let children = ProjectTree.children(of: project.id, in: vault.projects).filter { !$0.isArchived }
         guard let first = children.first else { return .handled }
-        if collapsed.contains(project.id) {
-            withAnimation(.easeInOut(duration: 0.18)) { _ = collapsed.remove(project.id) }
+        if !unfolded.contains(project.id) {
+            withAnimation(.easeInOut(duration: 0.18)) { _ = unfolded.insert(project.id) }
         } else {
             vault.selection = first.id
         }
@@ -328,6 +356,23 @@ struct MainView: View {
         }
     }
 
+    /// The sidebar's place in the main window's split view.
+    private static func sidebarItem() -> NSSplitViewItem? {
+        let window = NSApp.windows.first { $0.identifier?.rawValue == mainWindowID }
+        return window?.contentView.flatMap(splitViewController(in:))?.splitViewItems.first { $0.behavior == .sidebar }
+    }
+
+    /// The controller of the window's split view, found from its views.
+    private static func splitViewController(in view: NSView) -> NSSplitViewController? {
+        if let split = view as? NSSplitView, let controller = split.delegate as? NSSplitViewController {
+            return controller
+        }
+        for subview in view.subviews {
+            if let controller = splitViewController(in: subview) { return controller }
+        }
+        return nil
+    }
+
     /// Shows or hides the sidebar, with the app's own icon (the system's button can't take one).
     private var sidebarButton: some View {
         Button {
@@ -341,7 +386,87 @@ struct MainView: View {
         .accessibilityLabel(localized("Mostrar ou ocultar a barra lateral"))
     }
 
+    /// Opens the search at the top of the sidebar, or closes it and clears what was typed.
+    private var searchButton: some View {
+        Button {
+            if searchOpen { closeSearch() } else { openSearch() }
+        } label: {
+            TitlebarButtonLabel(active: searchOpen) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 13, weight: .medium))
+            }
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut("f")
+        .help(searchOpen ? localized("Fechar a busca (⌘F)") : localized("Buscar em tudo (⌘F)"))
+        .accessibilityLabel(searchOpen ? localized("Fechar a busca") : localized("Buscar em tudo"))
+    }
+
+    private static let searchAnimation = Animation.smooth(duration: 0.28)
+
+    private func openSearch() {
+        // With the sidebar folded away there is nowhere for the field: it comes back first. It is
+        // brought back through `columns`: the update that opens the search would otherwise put
+        // back the folded state SwiftUI still holds, undoing AppKit's own toggle.
+        if Self.sidebarItem()?.isCollapsed ?? (columns == .detailOnly) {
+            withAnimation(Self.searchAnimation) { columns = .all }
+        }
+        withAnimation(Self.searchAnimation) { searchOpen = true }
+        DispatchQueue.main.async { searchFocused = true }
+    }
+
+    private func closeSearch() {
+        withAnimation(Self.searchAnimation) {
+            searchOpen = false
+            query = ""
+        }
+        listFocused = true
+    }
+
+    /// The search field, sliding down from under the title bar. Esc closes it, ↓ and ↑ move
+    /// through what it found, and Return keeps the open project and goes back to the list.
+    private var searchField: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 11))
+                .foregroundStyle(Theme.muted)
+            TextField(localized("Buscar em tudo"), text: $query)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12.5))
+                .focused($searchFocused)
+                .onSubmit { listFocused = true }
+                .onKeyPress(.downArrow) { moveSelection(by: 1) }
+                .onKeyPress(.upArrow) { moveSelection(by: -1) }
+                .onExitCommand { closeSearch() }
+            if !query.isEmpty {
+                IconButton(symbol: "xmark.circle.fill", help: localized("Limpar a busca")) { query = "" }
+                    .frame(width: 18, height: 18)
+                    .transition(.opacity)
+            }
+        }
+        .padding(.horizontal, 9)
+        .frame(height: 28)
+        .background(Theme.paper.opacity(searchFocused ? 0.09 : 0.06), in: Capsule())
+        .animation(.easeOut(duration: 0.15), value: query.isEmpty)
+        .animation(.easeOut(duration: 0.15), value: searchFocused)
+        .padding(.horizontal, 10)
+        .padding(.top, 2)
+        .padding(.bottom, 6)
+    }
+
     private var sidebar: some View {
+        VStack(spacing: 0) {
+            if searchOpen {
+                searchField
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+            projectList
+        }
+        // The field slides out from under the title bar, not over it.
+        .clipped()
+    }
+
+    private var projectList: some View {
         // The list draws no selection of its own: the system's would be a strong accent color.
         // Each row shows its own quiet highlight (see ProjectRow), and the arrow keys and Delete
         // still work while the list has the keyboard.
@@ -350,7 +475,7 @@ struct MainView: View {
                 // The projects in use, as a tree. Archived ones aren't here at all: they live in
                 // Settings › Archived, out of the way.
                 ForEach(ProjectTree.roots(archived: false, in: vault.projects)) { project in
-                    ProjectTreeRow(project: project, archived: false, collapsed: $collapsed, actions: rowActions)
+                    ProjectTreeRow(project: project, archived: false, unfolded: $unfolded, actions: rowActions)
                 }
             } else {
                 // A search shows what matched as a flat list, each with the path to it.
@@ -366,16 +491,17 @@ struct MainView: View {
         // The keyboard starts on the list, never in a text field: a project's name field with
         // the focus has its text selected, so the first keystroke would replace the name.
         .defaultFocus($listFocused, true)
-        .onAppear { DispatchQueue.main.async { listFocused = true } }
-        // The sidebar's own button, where the system's would be, in place of it. macOS keeps it
-        // in the title bar while the sidebar is hidden, so it also brings the sidebar back.
-        .toolbar(removing: .sidebarToggle)
-        .toolbar {
-            ToolbarItem(placement: .automatic) { sidebarButton }
-                // No glass capsule behind it: macOS 26 gives every toolbar item one, which made
-                // this button look like a circle. It highlights on its own instead.
-                .sharedBackgroundVisibility(.hidden)
+        // Without a search field in the sidebar, AppKit makes the project's name the window's
+        // first responder as it opens, and the list can't take the keyboard from a field that
+        // holds it: the window lets go of it first.
+        .onAppear {
+            DispatchQueue.main.async {
+                NSApp.windows.first { $0.identifier?.rawValue == mainWindowID }?.makeFirstResponder(nil)
+                listFocused = true
+            }
         }
+        // The app's own button takes the system's place (see `body`).
+        .toolbar(removing: .sidebarToggle)
         .onChange(of: vault.selection, initial: true) { reveal(vault.selection) }
         // Archiving the open project takes it out of the sidebar: the project above it, if that one
         // is still in use, opens instead.
@@ -436,7 +562,7 @@ struct ProjectTreeRow<Actions: View>: View {
     var path: [String] = []
     /// How deep in the tree the row is: each level indents it a little.
     var depth = 0
-    @Binding var collapsed: Set<Project.ID>
+    @Binding var unfolded: Set<Project.ID>
     let actions: (Project) -> Actions
     @EnvironmentObject private var vault: Vault
 
@@ -444,10 +570,10 @@ struct ProjectTreeRow<Actions: View>: View {
         // Rows of their own rather than a DisclosureGroup: the system's disclosure triangle made
         // the list keep an empty column on the left of every row, groups or not.
         let children = ProjectTree.children(of: project.id, in: vault.projects).filter { $0.isArchived == archived }
-        let expanded = !collapsed.contains(project.id)
+        let expanded = unfolded.contains(project.id)
         SelectableProjectRow(project: project, path: path, expanded: children.isEmpty ? nil : expanded) {
             withAnimation(.easeInOut(duration: 0.18)) {
-                if expanded { collapsed.insert(project.id) } else { collapsed.remove(project.id) }
+                if expanded { unfolded.remove(project.id) } else { unfolded.insert(project.id) }
             }
         }
         .padding(.leading, CGFloat(depth) * 16)
@@ -455,7 +581,7 @@ struct ProjectTreeRow<Actions: View>: View {
         if expanded {
             ForEach(children) { child in
                 // Type-erased: the row contains rows of its own type.
-                AnyView(ProjectTreeRow(project: child, archived: archived, depth: depth + 1, collapsed: $collapsed, actions: actions))
+                AnyView(ProjectTreeRow(project: child, archived: archived, depth: depth + 1, unfolded: $unfolded, actions: actions))
             }
         }
     }

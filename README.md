@@ -42,7 +42,8 @@ pointing down. The name follows the Mac's language, in the app and in Finder, th
 
 **Projects**
 - **Projects inside projects**: a company and its products, a product and its services, as deep
-  as you need. The sidebar shows the tree, each project shows the path above it and its
+  as you need. The sidebar shows the tree, with every group folded when the app opens (the open
+  project's groups unfold to show it). Each project shows the path above it and its
   subprojects, and searching a project also searches what's inside it. Deleting a project keeps
   its subprojects, one level up.
 - A project per thing you maintain, with a symbol, a one-line summary and tags.
@@ -74,8 +75,9 @@ pointing down. The name follows the Mac's language, in the app and in Finder, th
 - A password generator without look-alike characters or quotes that break shells and `.env` files.
 
 **Everyday details**
-- Search everything from the sidebar: names, context, tags, links, variable names and usernames.
-  Secret values are never searched.
+- Search everything with the magnifying glass beside the sidebar button, or ⌘F: the field slides
+  down at the top of the sidebar and looks at names, context, tags, links, variable names and
+  usernames. ↓ and ↑ move through the results; Esc closes it. Secret values are never searched.
 - **The menu bar**: click the icon, click a project (and a subproject, if it has them), and search
   its accesses and variables; each one copies with a click, without opening the main window. Typing before choosing a project
   searches all of them (try "aurora prod database"). Esc goes back to the projects.
@@ -91,13 +93,53 @@ pointing down. The name follows the Mac's language, in the app and in Finder, th
 | Projects, variables, accesses | One file, `~/Library/Application Support/Keys/vault.keys`, encrypted with ChaCha20-Poly1305 under a random 256-bit vault key. |
 | The vault key | Inside the same file, sealed for the device key (P256 key agreement + HKDF-SHA256). |
 | The device key | Created inside the Mac's **Secure Enclave**, which never lets it out. Using it requires Touch ID or the Mac's password. |
-| The device key's handle | Your login Keychain. It is encrypted by the Secure Enclave and useless on any other Mac. |
-| Automatic copies | `Backups/` next to the vault: the vault as it was before each session's first change, the 20 most recent, encrypted the same way (so they also open only on this Mac). |
+| The device key's handle | Your login Keychain, in an item of its own for each key. It is encrypted by the Secure Enclave and useless on any other Mac. Keys never replaces or deletes one. |
+| Automatic copies | `Backups/` next to the vault: the vault as it was before each session's first change, the 20 most recent of each vault, encrypted the same way (so they also open only on this Mac). |
 | Exported backups | A `.keys-backup` file wherever you save it, sealed with ChaCha20-Poly1305 under a key derived from a password you choose (PBKDF2-HMAC-SHA256, 1,000,000 rounds, random salt). The password is never stored. |
 
 There is no master password, no account and no server: nothing is sent anywhere. The flip side is
 that **the vault itself only opens on the Mac that created it**: Migration Assistant or Time
 Machine copy the file, but not the key in the Secure Enclave.
+
+### If the vault doesn't open
+
+- **Keys couldn't read the key in the Keychain** (it is locked, access was denied, or the app's
+  signature changed): nothing is lost. Unlock the Keychain or allow access, and choose
+  **Tentar de novo** (Try again).
+- **The vault doesn't open here** (its key isn't in the Keychain, or doesn't work on this Mac):
+  import a backup, or start a new vault. Either way the old vault is renamed to
+  `vault-unreadable-<date>.keys` and no key is deleted. If its key comes back, quit Keys, move the
+  new `vault.keys` elsewhere and give the old file that name: it opens again.
+
+### If the vault can't be saved
+
+Keys still locks. The edits that didn't reach the disk stay in memory, encrypted like the file, and
+it keeps trying to save them, so leave it open while you free space or restore access to the
+folder; quitting warns first. They don't survive a crash or a power cut.
+
+### If two copies of Keys have the vault open
+
+Opening and locking don't write anything, only edits do, and an edit never replaces a vault that
+changed since that copy opened it. The copy that saves second leaves `vault.keys` alone, puts its
+version in `vault-unsaved-<date>-<code>.keys` next to it, locks and shows that name. The same
+happens to edits that waited for a save while the file changed. Unlocking again opens the current
+vault.
+
+To bring the two together: quit every copy of Keys, move `vault.keys` elsewhere and give the
+`vault-unsaved-…` file that name. Open it and export a backup. Then quit, put the first file back,
+open it and import the backup. A project edited in both keeps the copy changed last, and one
+deleted in only one comes back, so keep both files until you have checked.
+
+Versions from before this check still replace the file without looking: while one of them is
+installed, don't open the same vault with it and another copy at once.
+
+Creating a vault, or importing one, never writes over a `vault.keys` that is already there.
+
+### About the Keychain items
+
+Don't delete the Keychain items named "Keys": without its item, a vault and its automatic copies
+can't be opened. Vaults from versions that kept a single item (account `device-key`) keep using
+it, with nothing to migrate.
 
 ### Moving to another Mac
 
@@ -158,8 +200,15 @@ scripts/test.sh                 # tests (works with Xcode or with only the Comma
 ./build.sh                      # release build and app bundle
 open build/Keys.app --args --sample   # a made-up vault in memory: no Touch ID, nothing saved
 build/Keys.app/Contents/MacOS/Keys --snapshot /tmp/keys-screens   # draw every screen to PNG and quit
-KEYS_VAULT_DIR=/tmp/keys-dev open build/Keys.app   # a separate vault, to try things safely
+KEYS_VAULT_DIR=/tmp/keys-dev build/Keys.app/Contents/MacOS/Keys   # a separate vault and keys, to try things safely
 ```
+
+`KEYS_VAULT_DIR` keeps that folder's keys under a Keychain service of their own
+(`com.guilhermekollet.keys.custom-folder`), so it can't reach your vault's. Run the executable as
+above: `open` brings an app that is already running to the front, without the variable, and that
+would be your own vault. Builds from before this separation share and replace your vault's key,
+so never use the variable with one. A vault one of them made in such a folder doesn't open in
+this version: export a backup with that build and import it here.
 
 `--sample` is the way to work on the interface without touching your vault, and `--snapshot` draws
 each screen with it (main window per filter, lock screens, settings, menu bar panel, access editor)
@@ -181,7 +230,7 @@ Sources/Keys/
   VaultFile.swift          The file format and its encryption
   VaultBackup.swift        Password-protected backups, for moving to another Mac, and merging them
   BackupViews.swift        Exporting and importing backups
-  DeviceKey.swift          The Secure Enclave key and its handle in the Keychain
+  DeviceKey.swift          The Secure Enclave keys and their add-only handles in the Keychain
   Models.swift             Projects, environments, variables, accesses, search
   DotEnv.swift             Reading and writing .env files
   PasswordGenerator.swift  Random passwords
@@ -193,6 +242,7 @@ Sources/Keys/
   CredentialsTab.swift     Accesses, their editor and the password generator
   MenuBarPanel.swift       Quick search from the menu bar
   SettingsView.swift       Settings
+  TitlebarAccessory.swift  Places the sidebar button beside the window's controls
   Theme.swift              Colors, the key mark and the shared controls (pills, cards, tabs)
   SampleVault.swift        The made-up vault behind --sample
   Snapshot.swift           --snapshot: draws every screen to PNG

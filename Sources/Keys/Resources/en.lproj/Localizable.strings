@@ -17,7 +17,10 @@
 "O arquivo do cofre não é um cofre do Chaves." = "The vault file isn't a Keys vault.";
 "Este cofre foi salvo por uma versão mais nova do Chaves. Atualize o app para abri-lo." = "This vault was saved by a newer version of Keys. Update the app to open it.";
 "O arquivo do cofre está danificado ou foi alterado." = "The vault file is damaged or was changed.";
-"A chave deste Mac não está no Keychain, então o cofre não pode ser aberto aqui." = "This Mac's key isn't in the Keychain, so the vault can't be opened here.";
+"A chave deste cofre não está no Keychain deste Mac, então ele não pode ser aberto aqui. Se ele veio de outro Mac, importe um backup feito lá." = "This vault's key isn't in this Mac's Keychain, so it can't be opened here. If it came from another Mac, import a backup made there.";
+"A chave deste cofre está no Keychain, mas o Secure Enclave deste Mac não a aceita. Se o cofre veio de outro Mac, importe um backup feito lá." = "This vault's key is in the Keychain, but this Mac's Secure Enclave doesn't accept it. If the vault came from another Mac, import a backup made there.";
+"O Chaves não conseguiu ler a chave do cofre no Keychain. Nada foi apagado: desbloqueie o Keychain ou permita o acesso e tente de novo. (%@)" = "Keys couldn't read the vault's key in the Keychain. Nothing was deleted: unlock the Keychain or allow access, then try again. (%@)";
+"Tentar de novo" = "Try again";
 "Este Mac não tem Secure Enclave, que o Chaves usa para guardar a chave do cofre." = "This Mac has no Secure Enclave, which Keys uses to keep the vault's key.";
 
 /* Main window */
@@ -28,6 +31,9 @@
 "Trancar o cofre (⇧⌘L)" = "Lock the vault (⇧⌘L)";
 "O cofre de exemplo não tranca" = "The sample vault doesn't lock";
 "Buscar em tudo" = "Search everything";
+"Buscar em tudo (⌘F)" = "Search everything (⌘F)";
+"Fechar a busca" = "Close search";
+"Fechar a busca (⌘F)" = "Close search (⌘F)";
 "Apagar %@?" = "Delete %@?";
 "Apagar projeto" = "Delete project";
 "Apagar projeto…" = "Delete project…";
@@ -300,6 +306,17 @@
 "Igual ao sistema" = "Same as the system";
 "Claro" = "Light";
 "Escuro" = "Dark";
+
+/* Not losing the vault */
+"Já existe um cofre nesta pasta, e nada foi sobrescrito. Destranque-o para continuar." = "There is already a vault in this folder, and nothing was overwritten. Unlock it to continue.";
+"O cofre mudou no disco, então as alterações que não tinham sido salvas ficaram em %@, na mesma pasta." = "The vault changed on disk, so the changes that hadn't been saved are in %@, in the same folder.";
+"As últimas alterações ainda não foram salvas. Deixe o Chaves aberto: elas estão criptografadas na memória e ele continua tentando salvar." = "Your latest changes aren't saved yet. Leave Keys open: they are encrypted in memory and it keeps trying to save them.";
+"As últimas alterações não foram salvas" = "Your latest changes weren't saved";
+"Se você encerrar agora, elas se perdem." = "If you quit now, they'll be lost.";
+"Encerrar sem salvar" = "Quit without saving";
+"Suas alterações ficaram em outro arquivo" = "Your changes are in another file";
+
+/* Moving accesses */
 "Mover para" = "Move to";
 "Mover para outro projeto" = "Move to another project";
 "Nenhum outro projeto" = "No other projects";
