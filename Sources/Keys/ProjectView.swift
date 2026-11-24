@@ -66,6 +66,8 @@ struct ProjectView: View {
             }
         }
         .animation(.smooth(duration: 0.25), value: editing == nil)
+        // The accesses' icons, in the list and in the panel, are drawn in the project's style.
+        .environment(\.iconStyle, project.iconStyle)
         // An access closed without anything typed in it isn't kept.
         .onChange(of: editing) { old, _ in dropIfEmpty(old) }
         .onDisappear { dropIfEmpty(editing) }
@@ -163,7 +165,7 @@ struct ProjectHeader: View {
             .help(localized("Trocar o ícone e a cor"))
             .accessibilityLabel(localized("Trocar o ícone e a cor"))
             .popover(isPresented: $choosingLook, arrowEdge: .bottom) {
-                ProjectLookPicker(symbol: $project.symbol, tint: $project.tint)
+                ProjectLookPicker(symbol: $project.symbol, tint: $project.tint, style: $project.iconStyle)
             }
 
             VStack(alignment: .leading, spacing: 3) {
@@ -440,7 +442,7 @@ struct EmptyTab: View {
 struct ProjectLookPicker: View {
     @Binding var symbol: String
     @Binding var tint: Project.Tint
-    private let columns = Array(repeating: GridItem(.fixed(32), spacing: 6), count: 9)
+    @Binding var style: Project.IconStyle
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -467,36 +469,121 @@ struct ProjectLookPicker: View {
                 }
             }
 
+            Text(localized("Estilo"))
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Theme.muted)
+            HStack(spacing: 6) {
+                ForEach(Project.IconStyle.allCases) { option in
+                    let selected = option == style
+                    let color = Theme.color(tint)
+                    Button {
+                        style = option
+                    } label: {
+                        HStack(spacing: 7) {
+                            Image(systemName: symbol)
+                                .iconStyle(option, size: 14)
+                                .foregroundStyle(selected ? color : Theme.paper.opacity(0.75))
+                            Text(option.label)
+                                .font(.system(size: 12, weight: selected ? .semibold : .medium))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 32)
+                        .background(selected ? color.opacity(0.18) : Theme.paper.opacity(0.04), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(color.opacity(selected ? 0.6 : 0), lineWidth: 1))
+                        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(selected ? .isSelected : [])
+                }
+            }
+
             Text(localized("Ícone"))
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(Theme.muted)
+            SymbolGrid(categories: Project.symbolCategories, selected: symbol, color: Theme.color(tint), style: style) { symbol = $0 }
+        }
+        .padding(16)
+        .frame(width: SymbolGrid.width + 32)
+        .keysSurface()
+    }
+}
+
+/// Icons to pick from, under their categories' names, with a search above them over the icons'
+/// names and the categories'.
+struct SymbolGrid: View {
+    let categories: [IconCategory]
+    let selected: String
+    let color: Color
+    var style = Project.IconStyle.line
+    let choose: (String) -> Void
+    @State private var query = ""
+
+    static let columnCount = 9
+    static let width = CGFloat(columnCount) * 32 + CGFloat(columnCount - 1) * 6
+    private let columns = Array(repeating: GridItem(.fixed(32), spacing: 6), count: columnCount)
+
+    var body: some View {
+        let shown = IconCategory.matching(query, in: categories)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.muted)
+                TextField(localized("Buscar ícone (em inglês: cart, key, cloud…)"), text: $query)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12.5))
+                if !query.isEmpty {
+                    IconButton(symbol: "xmark.circle.fill", help: localized("Limpar a busca")) { query = "" }
+                        .frame(width: 18, height: 18)
+                }
+            }
+            .padding(.horizontal, 9)
+            .frame(height: 28)
+            .background(Theme.paper.opacity(0.06), in: Capsule())
+
             ScrollView {
-                LazyVGrid(columns: columns, spacing: 6) {
-                    ForEach(Project.symbols, id: \.self) { option in
-                        let selected = option == symbol
-                        let color = Theme.color(tint)
-                        Button {
-                            symbol = option
-                        } label: {
-                            Image(systemName: option)
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundStyle(selected ? color : Theme.paper.opacity(0.75))
-                                .frame(width: 32, height: 32)
-                                .background(selected ? color.opacity(0.18) : Theme.paper.opacity(0.04), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(color.opacity(selected ? 0.6 : 0), lineWidth: 1))
-                                .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    ForEach(shown) { category in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(category.title)
+                                .font(.system(size: 10.5, weight: .semibold))
+                                .foregroundStyle(Theme.muted)
+                            LazyVGrid(columns: columns, spacing: 6) {
+                                ForEach(category.symbols, id: \.self) { option in
+                                    cell(option)
+                                }
+                            }
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(option)
-                        .accessibilityAddTraits(selected ? .isSelected : [])
+                    }
+                    if shown.isEmpty {
+                        Text(localized("Nenhum ícone com esse nome."))
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.muted)
+                            .padding(.vertical, 8)
                     }
                 }
             }
-            .frame(height: 6 * 38)
+            .frame(width: Self.width, height: 7 * 38)
             .scrollIndicators(.never)
         }
-        .padding(16)
-        .frame(width: 9 * 32 + 8 * 6 + 32)
-        .keysSurface()
+    }
+
+    private func cell(_ option: String) -> some View {
+        let isSelected = option == selected
+        return Button {
+            choose(option)
+        } label: {
+            Image(systemName: option)
+                .iconStyle(style, size: 14)
+                .foregroundStyle(isSelected ? color : Theme.paper.opacity(0.75))
+                .frame(width: 32, height: 32)
+                .background(isSelected ? color.opacity(0.18) : Theme.paper.opacity(0.04), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(color.opacity(isSelected ? 0.6 : 0), lineWidth: 1))
+                .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .help(option)
+        .accessibilityLabel(option)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

@@ -329,7 +329,8 @@
 "A linha %lld não é CHAVE=valor." = "Line %lld isn't KEY=value.";
 "As linhas %@ não são CHAVE=valor." = "Lines %@ aren't KEY=value.";
 "%lld novas, %lld atualizadas, %lld removidas" = "%lld new, %lld updated, %lld removed";
-"Preenchido" = "Filled in";
+"Com conteúdo" = "Has content";
+"Preenchido" = "Filled";
 
 /* The start page */
 "Início" = "Home";
@@ -355,3 +356,19 @@
 "projeto" = "project";
 "projetos" = "projects";
 "Vazio por enquanto" = "Empty for now";
+
+/* Icons */
+"Estilo" = "Style";
+"Linha" = "Line";
+"Bold" = "Bold";
+"Buscar ícone (em inglês: cart, key, cloud…)" = "Search icons (cart, key, cloud…)";
+"Nenhum ícone com esse nome." = "No icon by that name.";
+"Acesso e segurança" = "Access and security";
+"Tecnologia" = "Technology";
+"Negócios e comércio" = "Business and commerce";
+"Pessoas e comunicação" = "People and communication";
+"Ferramentas e lugares" = "Tools and places";
+"Criação e mídia" = "Creative and media";
+"Ciência e estudo" = "Science and learning";
+"Lazer e esporte" = "Leisure and sport";
+"Vida e natureza" = "Life and nature";

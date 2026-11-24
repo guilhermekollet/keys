@@ -551,6 +551,19 @@ func firstProjectTint(from json: String) -> String {
     (try? Vault.decode(Data(json.utf8)))?.projects.first?.tint.rawValue ?? "failed"
 }
 
+/// The first project's icon style after reading `json` as a vault, or "failed".
+func firstProjectIconStyle(from json: String) -> String {
+    (try? Vault.decode(Data(json.utf8)))?.projects.first?.iconStyle.rawValue ?? "failed"
+}
+
+/// The icon style a project keeps after a trip through the vault file.
+func iconStyleAfterSaving(_ style: Project.IconStyle) -> String {
+    var project = Project(name: "Styled")
+    project.iconStyle = style
+    guard let data = try? Vault.encode(VaultContents(projects: [project])) else { return "failed" }
+    return (try? Vault.decode(data))?.projects.first?.iconStyle.rawValue ?? "failed"
+}
+
 /// Whether every symbol offered for a project exists on this Mac, and how many there are.
 func projectSymbolsExist() -> (count: Int, missing: [String]) {
     (Project.symbols.count, Project.symbols.filter { NSImage(systemSymbolName: $0, accessibilityDescription: nil) == nil })

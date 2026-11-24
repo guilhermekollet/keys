@@ -99,10 +99,12 @@ struct CredentialRow: View {
 struct CredentialIcon: View {
     let symbol: String
     var size: CGFloat = 28
+    /// Follows the project the access is in (see ProjectView).
+    @Environment(\.iconStyle) private var style
 
     var body: some View {
         Image(systemName: symbol)
-            .font(.system(size: size * 0.46, weight: .medium))
+            .iconStyle(style, size: size * 0.46)
             .foregroundStyle(Theme.accent)
             .frame(width: size, height: size)
             .background(Theme.accent.opacity(0.1), in: RoundedRectangle(cornerRadius: size * 0.28, style: .continuous))
@@ -391,7 +393,7 @@ struct CredentialSymbolPicker: View {
     /// The kind's icon, shown while none is picked.
     let automatic: String
     @Environment(\.dismiss) private var dismiss
-    private let columns = Array(repeating: GridItem(.fixed(32), spacing: 6), count: 9)
+    @Environment(\.iconStyle) private var style
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -409,29 +411,13 @@ struct CredentialSymbolPicker: View {
                     .foregroundStyle(symbol == nil ? Theme.muted : Theme.accent)
                     .disabled(symbol == nil)
             }
-            LazyVGrid(columns: columns, spacing: 6) {
-                ForEach(Credential.symbols, id: \.self) { option in
-                    let selected = option == (symbol ?? automatic)
-                    Button {
-                        symbol = option == automatic ? nil : option
-                        dismiss()
-                    } label: {
-                        Image(systemName: option)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(selected ? Theme.accent : Theme.paper.opacity(0.75))
-                            .frame(width: 32, height: 32)
-                            .background(selected ? Theme.accent.opacity(0.12) : Theme.paper.opacity(0.04), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Theme.accent.opacity(selected ? 0.6 : 0), lineWidth: 1))
-                            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(option)
-                    .accessibilityAddTraits(selected ? .isSelected : [])
-                }
+            SymbolGrid(categories: Credential.symbolCategories, selected: symbol ?? automatic, color: Theme.accent, style: style) { option in
+                symbol = option == automatic ? nil : option
+                dismiss()
             }
         }
         .padding(16)
-        .frame(width: 9 * 32 + 8 * 6 + 32)
+        .frame(width: SymbolGrid.width + 32)
         .keysSurface()
     }
 }

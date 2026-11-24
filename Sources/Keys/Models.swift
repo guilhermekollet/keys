@@ -30,12 +30,20 @@ struct Project: Codable, Identifiable, Hashable {
     var archivedAt: Date?
     /// The color of the project's symbol, to tell projects apart at a glance.
     var tint = Tint.lavender
+    /// How its icon is drawn: in thin lines, in bold lines, or filled.
+    var iconStyle = IconStyle.line
 
     var isArchived: Bool { archivedAt != nil }
 
     /// Soft tones that sit well on the background, dark or light; lavender, the default, comes first.
     enum Tint: String, Codable, CaseIterable, Identifiable {
         case lavender, sky, mint, lime, amber, coral, rose, slate
+        var id: Self { self }
+    }
+
+    /// Line, the default, comes first.
+    enum IconStyle: String, Codable, CaseIterable, Identifiable {
+        case line, bold, filled
         var id: Self { self }
     }
 }
@@ -455,6 +463,8 @@ extension Project {
         parentID = try container.decodeIfPresent(UUID.self, forKey: .parentID)
         archivedAt = try container.decodeIfPresent(Date.self, forKey: .archivedAt)
         tint = (try? container.value(.tint, or: Tint.lavender)) ?? .lavender
+        // Missing in vaults from before icon styles, and unknown if a later build adds one.
+        iconStyle = (try? container.value(.iconStyle, or: IconStyle.line)) ?? .line
         // Vaults from before archiving had a status instead; only "archived" carries over.
         if archivedAt == nil, (try? decoder.container(keyedBy: LegacyKeys.self).decodeIfPresent(String.self, forKey: .status)) == "archived" {
             archivedAt = updatedAt

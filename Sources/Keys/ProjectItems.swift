@@ -99,7 +99,7 @@ struct ProjectItemsView: View {
                     Circle()
                         .frame(width: 5, height: 5)
                         .opacity(0.65)
-                        .accessibilityLabel(localized("Preenchido"))
+                        .accessibilityLabel(localized("Com conteúdo"))
                 }
             }
             .foregroundStyle(active ? Theme.ink : Theme.paper.opacity(0.75))

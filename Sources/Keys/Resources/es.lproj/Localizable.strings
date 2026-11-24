@@ -329,7 +329,8 @@
 "A linha %lld não é CHAVE=valor." = "La línea %lld no es CLAVE=valor.";
 "As linhas %@ não são CHAVE=valor." = "Las líneas %@ no son CLAVE=valor.";
 "%lld novas, %lld atualizadas, %lld removidas" = "%lld nuevas, %lld actualizadas, %lld eliminadas";
-"Preenchido" = "Con contenido";
+"Com conteúdo" = "Con contenido";
+"Preenchido" = "Relleno";
 
 /* The start page */
 "Início" = "Inicio";
@@ -355,3 +356,19 @@
 "projeto" = "proyecto";
 "projetos" = "proyectos";
 "Vazio por enquanto" = "Vacío por ahora";
+
+/* Icons */
+"Estilo" = "Estilo";
+"Linha" = "Línea";
+"Bold" = "Negrita";
+"Buscar ícone (em inglês: cart, key, cloud…)" = "Buscar icono (en inglés: cart, key, cloud…)";
+"Nenhum ícone com esse nome." = "Ningún icono con ese nombre.";
+"Acesso e segurança" = "Acceso y seguridad";
+"Tecnologia" = "Tecnología";
+"Negócios e comércio" = "Negocios y comercio";
+"Pessoas e comunicação" = "Personas y comunicación";
+"Ferramentas e lugares" = "Herramientas y lugares";
+"Criação e mídia" = "Creación y medios";
+"Ciência e estudo" = "Ciencia y estudio";
+"Lazer e esporte" = "Ocio y deporte";
+"Vida e natureza" = "Vida y naturaleza";

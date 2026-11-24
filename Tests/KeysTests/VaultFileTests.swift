@@ -69,16 +69,24 @@ struct VaultContentsTests {
         #expect(firstProjectTint(from: #"{"projects":[{"name":"New","tint":"mint"}]}"#) == "mint")
     }
 
+    @Test func aProjectKeepsItsIconStyle() {
+        #expect(iconStyleAfterSaving(.bold) == "bold")
+        #expect(iconStyleAfterSaving(.filled) == "filled")
+        // Vaults from before icon styles, and a style a later build may add, draw in lines.
+        #expect(firstProjectIconStyle(from: #"{"projects":[{"name":"Old"}]}"#) == "line")
+        #expect(firstProjectIconStyle(from: #"{"projects":[{"name":"New","iconStyle":"neon"}]}"#) == "line")
+    }
+
     @Test func everyProjectSymbolExists() {
         let symbols = projectSymbolsExist()
-        #expect(symbols.count == 90)
+        #expect(symbols.count == 207)
         #expect(symbols.missing.isEmpty)
         #expect(Set(Project.symbols).count == Project.symbols.count)
     }
 
     @Test func everyAccessIconExists() {
         let symbols = credentialSymbolsExist()
-        #expect(symbols.count == 36)
+        #expect(symbols.count == 207)
         #expect(symbols.missing.isEmpty)
         #expect(Set(Credential.symbols).count == Credential.symbols.count)
     }
