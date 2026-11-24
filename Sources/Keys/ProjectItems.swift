@@ -47,21 +47,24 @@ struct ProjectItemsView: View {
 
             Spacer(minLength: 8)
 
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Theme.muted)
-                TextField(localized("Buscar no projeto"), text: $query)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 12.5))
-                if !query.isEmpty {
-                    IconButton(symbol: "xmark.circle.fill", help: localized("Limpar a busca")) { query = "" }
-                        .frame(width: 18, height: 18)
+            // The search looks through the list; the context has nothing for it to find.
+            if filter != .context {
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.muted)
+                    TextField(localized("Buscar no projeto"), text: $query)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12.5))
+                    if !query.isEmpty {
+                        IconButton(symbol: "xmark.circle.fill", help: localized("Limpar a busca")) { query = "" }
+                            .frame(width: 18, height: 18)
+                    }
                 }
+                .padding(.horizontal, 9)
+                .frame(width: 200, height: 28)
+                .background(Theme.paper.opacity(0.06), in: Capsule())
             }
-            .padding(.horizontal, 9)
-            .frame(width: 200, height: 28)
-            .background(Theme.paper.opacity(0.06), in: Capsule())
 
             Menu {
                 Button(localized("Novo acesso"), systemImage: "key", action: newCredential)
@@ -91,6 +94,12 @@ struct ProjectItemsView: View {
                     Text("\(count)")
                         .font(.system(size: 11).monospacedDigit())
                         .opacity(0.65)
+                } else if section == .context && !(project.context.isEmpty && project.localPath.isEmpty) {
+                    // Something is written there.
+                    Circle()
+                        .frame(width: 5, height: 5)
+                        .opacity(0.65)
+                        .accessibilityLabel(localized("Preenchido"))
                 }
             }
             .foregroundStyle(active ? Theme.ink : Theme.paper.opacity(0.75))
@@ -113,6 +122,7 @@ struct ProjectItemsView: View {
         case .credentials: project.credentials.count
         case .variables: variableCount
         case .links: project.links.count
+        case .context: 0
         }
     }
 
@@ -120,6 +130,15 @@ struct ProjectItemsView: View {
 
     @ViewBuilder
     private var content: some View {
+        if filter == .context {
+            ContextEditor(project: $project)
+        } else {
+            items
+        }
+    }
+
+    @ViewBuilder
+    private var items: some View {
         let searching = !Search.words(query).isEmpty
         let credentials = project.credentials.filter { $0.matches(query) }
         let environments = project.environments.filter { environment in
