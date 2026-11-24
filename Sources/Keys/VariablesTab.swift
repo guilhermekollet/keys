@@ -4,6 +4,7 @@ import SwiftUI
 /// delete), then its variables, those matching `query` while there's a search.
 struct EnvironmentSection: View {
     @Binding var project: Project
+    @EnvironmentObject private var vault: Vault
     let environmentID: EnvironmentSet.ID
     var query = ""
     @State private var renaming = false
@@ -33,9 +34,7 @@ struct EnvironmentSection: View {
                             ForEach(visible) { variable in
                                 if variable.id != visible.first?.id { RowDivider() }
                                 if let binding = binding(for: variable.id) {
-                                    VariableRow(variable: binding) {
-                                        update { $0.variables.removeAll { $0.id == variable.id } }
-                                    }
+                                    VariableRow(variable: binding) { remove(variable.id) }
                                 }
                             }
                         }
@@ -122,6 +121,18 @@ struct EnvironmentSection: View {
             .menuIndicator(.hidden)
             .fixedSize()
             .help(localized("Importar, exportar e organizar o ambiente"))
+        }
+    }
+
+    /// Takes a variable out, with a way to put it back for a few seconds.
+    private func remove(_ id: Variable.ID) {
+        guard let index = environment?.variables.firstIndex(where: { $0.id == id }),
+              let gone = environment?.variables[index] else { return }
+        update { $0.variables.remove(at: index) }
+        let projectID = project.id
+        let environmentID = self.environmentID
+        Toaster.shared.deleted(localized("Variável apagada")) {
+            vault.restoreVariable(gone, at: index, in: environmentID, of: projectID)
         }
     }
 
@@ -325,7 +336,7 @@ struct DotEnvView: View {
             HStack(spacing: 2) {
                 if hasSecrets {
                     IconButton(symbol: revealed ? "eye.slash" : "eye", help: revealed ? localized("Ocultar os valores secretos") : localized("Mostrar os valores secretos")) {
-                        revealed.toggle()
+                        withAnimation(.easeOut(duration: 0.15)) { revealed.toggle() }
                     }
                 }
                 if !lines.isEmpty {
@@ -437,7 +448,7 @@ struct VariableRow: View {
             }
             .textFieldStyle(.code)
             IconButton(symbol: revealed ? "eye.slash" : "eye", help: revealed ? localized("Ocultar") : localized("Mostrar")) {
-                revealed.toggle()
+                withAnimation(.easeOut(duration: 0.15)) { revealed.toggle() }
             }
             .opacity(variable.isSecret ? 1 : 0)
             .disabled(!variable.isSecret)

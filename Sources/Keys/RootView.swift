@@ -212,6 +212,8 @@ struct MainView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Theme.ink)
+            // What was just copied or deleted, at the foot of the window.
+            .overlay(alignment: .bottom) { ToastOverlay() }
         }
         // Beside the window's controls, outside the sidebar, so it is still there to bring it back.
         .background(LeadingTitlebarAccessory {
@@ -236,6 +238,9 @@ struct MainView: View {
             }
         }
         .toolbar {
+            ToolbarItem {
+                SaveStatusView()
+            }
             ToolbarItem {
                 Button { vault.addProject() } label: {
                     Label(localized("Novo projeto"), systemImage: "plus")

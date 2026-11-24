@@ -948,3 +948,28 @@ func recoveryCodesFromOldVault() -> [String] {
     let json = #"{"projects":[{"name":"Old","credentials":[{"title":"Mail","password":"x"}]}]}"#
     return (try? Vault.decode(Data(json.utf8)))?.projects.first?.credentials.first?.recoveryCodes.map(\.code) ?? ["failed"]
 }
+
+// MARK: Putting deleted things back
+
+/// What a project holds after an access, a variable and a link are deleted and then put back,
+/// in an in-memory sample vault, as "credentials|variables|links" titles in order.
+@MainActor
+func afterDeletingAndPuttingBack() -> String {
+    let vault = Vault(previewing: .unlocked)
+    var project = Project(name: "Undo")
+    project.credentials = [Credential(title: "A"), Credential(title: "B"), Credential(title: "C")]
+    project.environments = [EnvironmentSet(name: "development", variables: [Variable(key: "X"), Variable(key: "Y")])]
+    project.links = [ProjectLink(title: "One"), ProjectLink(title: "Two")]
+    vault.projects = [project]
+    let credential = vault.projects[0].credentials.remove(at: 1)
+    let variable = vault.projects[0].environments[0].variables.remove(at: 0)
+    let link = vault.projects[0].links.remove(at: 1)
+    vault.restoreCredential(credential, at: 1, in: project.id)
+    vault.restoreVariable(variable, at: 0, in: project.environments[0].id, of: project.id)
+    vault.restoreLink(link, at: 1, in: project.id)
+    // Putting back twice doesn't add it twice.
+    vault.restoreCredential(credential, at: 1, in: project.id)
+    let p = vault.projects[0]
+    return [p.credentials.map(\.title), p.environments[0].variables.map(\.key), p.links.map(\.title)]
+        .map { $0.joined(separator: ",") }.joined(separator: "|")
+}

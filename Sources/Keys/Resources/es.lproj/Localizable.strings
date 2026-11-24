@@ -395,3 +395,14 @@
 "Marcar como não usado" = "Marcar como no usado";
 "Código %lld" = "Código %lld";
 "Código %lld, usado" = "Código %lld, usado";
+
+/* Feedback after an action */
+"Copiado. Sai da área de transferência em %lld s." = "Copiado. Sale del portapapeles en %lld s.";
+"Desfazer" = "Deshacer";
+"Acesso apagado" = "Acceso borrado";
+"Variável apagada" = "Variable borrada";
+"Link apagado" = "Enlace borrado";
+"Salvando…" = "Guardando…";
+"Salvo" = "Guardado";
+"Não salvo" = "No guardado";
+"O cofre não pôde ser salvo." = "No se pudo guardar la bóveda.";
