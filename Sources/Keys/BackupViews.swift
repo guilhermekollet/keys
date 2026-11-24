@@ -46,8 +46,12 @@ struct BackupCard: View {
 
     private var status: String {
         if vault.state != .unlocked { return localized("Destranque o cofre para exportar ou importar.") }
-        guard lastBackup > 0 else { return localized("Nenhum backup exportado ainda.") }
-        let date = Date(timeIntervalSinceReferenceDate: lastBackup).formatted(date: .abbreviated, time: .omitted)
+        // `lastBackup` keeps the text current after an export; a date from an earlier build is
+        // read by `Preferences.lastBackup`.
+        guard let last = lastBackup > 0 ? Date(timeIntervalSinceReferenceDate: lastBackup) : Preferences.lastBackup() else {
+            return localized("Nenhum backup exportado ainda.")
+        }
+        let date = last.formatted(date: .abbreviated, time: .omitted)
         return localized("Último backup: \(date)")
     }
 }

@@ -174,7 +174,7 @@ final class Vault: ObservableObject {
         // Deriving the key takes about half a second: off the main thread, so the window keeps drawing.
         let backup = try await Task.detached { try VaultBackup.seal(plaintext, password: password) }.value
         try backup.write(to: url)
-        UserDefaults.standard.set(Date(), forKey: Preferences.lastBackupKey)
+        Preferences.recordBackup()
     }
 
     /// Brings in the backup at `url`. Into an open vault it merges (see `VaultContents.merging`).
