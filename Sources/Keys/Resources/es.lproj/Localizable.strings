@@ -315,3 +315,9 @@
 "Se você encerrar agora, elas se perdem." = "Si sales ahora, se perderán.";
 "Encerrar sem salvar" = "Salir sin guardar";
 "Suas alterações ficaram em outro arquivo" = "Tus cambios quedaron en otro archivo";
+
+/* Variables as a .env file */
+"Ver como lista" = "Ver como lista";
+"Ver como .env" = "Ver como .env";
+"Mostrar os valores secretos" = "Mostrar los valores secretos";
+"Ocultar os valores secretos" = "Ocultar los valores secretos";

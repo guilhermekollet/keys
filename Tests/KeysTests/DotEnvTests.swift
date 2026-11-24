@@ -108,4 +108,42 @@ struct DotEnvTests {
         #expect(result.refused)
         #expect(result.targetUntouched)
     }
+
+    // MARK: Shown as a file
+
+    @Test func showsEachVariableAsTheFileWritesIt() {
+        let lines = DotEnv.displayLines([
+            Variable(key: "PORT", value: "3000"),
+            Variable(key: "GREETING", value: "hello world"),
+        ], revealing: false)
+        #expect(lines == [
+            DotEnv.DisplayLine(key: "PORT", value: "3000", masked: false),
+            DotEnv.DisplayLine(key: "GREETING", value: "'hello world'", masked: false),
+        ])
+    }
+
+    @Test func masksSecretsWithTheSameMaskWhateverTheirLength() {
+        let lines = DotEnv.displayLines([
+            Variable(key: "A_TOKEN", value: "x", isSecret: true),
+            Variable(key: "B_TOKEN", value: String(repeating: "y", count: 64), isSecret: true),
+        ], revealing: false)
+        let mask = DotEnv.DisplayLine(key: "", value: DotEnv.mask, masked: true)
+        #expect(lines == [
+            DotEnv.DisplayLine(key: "A_TOKEN", value: mask.value, masked: true),
+            DotEnv.DisplayLine(key: "B_TOKEN", value: mask.value, masked: true),
+        ])
+    }
+
+    @Test func revealingShowsSecretsAsTheFileWritesThem() {
+        let lines = DotEnv.displayLines([Variable(key: "API_KEY", value: "a b", isSecret: true)], revealing: true)
+        #expect(lines == [DotEnv.DisplayLine(key: "API_KEY", value: "'a b'", masked: false)])
+    }
+
+    @Test func leavesOutUnnamedVariablesAndDoesNotMaskEmptySecrets() {
+        let lines = DotEnv.displayLines([
+            Variable(key: "", value: "orphan"),
+            Variable(key: "EMPTY_SECRET", value: "", isSecret: true),
+        ], revealing: false)
+        #expect(lines == [DotEnv.DisplayLine(key: "EMPTY_SECRET", value: "", masked: false)])
+    }
 }

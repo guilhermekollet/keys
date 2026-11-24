@@ -73,6 +73,9 @@ enum Snapshot {
         if let credential = vault.projects.first?.credentials.last {
             await draw(CredentialEditor(credential: .constant(credential), close: {}) {}.frame(width: 360, height: 600).background(Theme.panel), size: nil, to: folder, name: "credential-editor")
         }
+        if let environment = vault.projects.first(where: { !$0.environments.isEmpty })?.environments.first {
+            await draw(DotEnvView(variables: environment.variables, dotEnv: environment.dotEnv).padding(20).frame(width: 640).background(Theme.ink), size: nil, to: folder, name: "variables-dotenv")
+        }
         await draw(GeneratorPopover(generator: .constant(PasswordGenerator())) { _ in }, size: nil, to: folder, name: "generator")
         await draw(ExportBackupSheet().environmentObject(vault), size: nil, to: folder, name: "backup-export")
         let sampleBackup = BackupFile(url: URL(fileURLWithPath: "/Users/you/\(VaultBackup.suggestedFileName())"))

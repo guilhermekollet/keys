@@ -118,6 +118,26 @@ enum DotEnv {
         return "\"\(escaped)\""
     }
 
+    /// One line of an environment shown as a `.env` file: the key, and the value as it would be
+    /// written, or `masked` instead of a secret value until the person asks to see it.
+    struct DisplayLine: Equatable {
+        var key: String
+        var value: String
+        var masked: Bool
+    }
+
+    /// The same mask for every hidden value, so the screen doesn't tell how long a secret is.
+    static let mask = "••••••••"
+
+    /// `variables` as the lines of the `.env` file `format` would write, with secret values masked
+    /// unless `revealing`. Variables without a name are left out, as they are from the file.
+    static func displayLines(_ variables: [Variable], revealing: Bool) -> [DisplayLine] {
+        variables.filter { !$0.key.isEmpty }.map { variable in
+            let hidden = variable.isSecret && !revealing && !variable.value.isEmpty
+            return DisplayLine(key: variable.key, value: hidden ? mask : quoted(variable.value), masked: hidden)
+        }
+    }
+
     static func isValidKey(_ key: String) -> Bool {
         guard let first = key.unicodeScalars.first, first == "_" || CharacterSet.letters.contains(first), first.isASCII else { return false }
         return key.unicodeScalars.allSatisfy { $0.isASCII && (CharacterSet.alphanumerics.contains($0) || "_.-".unicodeScalars.contains($0)) }
