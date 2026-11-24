@@ -296,11 +296,26 @@ struct ProjectBadge: View {
     var body: some View {
         let color = Theme.color(project.tint)
         Image(systemName: project.symbol)
-            .font(.system(size: size * 0.46, weight: .medium))
+            .iconStyle(project.iconStyle, size: size * 0.46)
             .foregroundStyle(color)
             .frame(width: size, height: size)
             .background(color.opacity(0.16), in: RoundedRectangle(cornerRadius: size * 0.28, style: .continuous))
     }
+}
+
+extension Image {
+    /// A symbol drawn in `style`: thin lines, bold lines, or filled (in lines where the symbol has
+    /// no filled form).
+    func iconStyle(_ style: Project.IconStyle, size: CGFloat) -> some View {
+        self
+            .font(.system(size: size, weight: style == .bold ? .bold : .medium))
+            .symbolVariant(style == .filled ? .fill : .none)
+    }
+}
+
+extension EnvironmentValues {
+    /// The open project's icon style, which its accesses' icons follow.
+    @Entry var iconStyle = Project.IconStyle.line
 }
 
 extension Theme {

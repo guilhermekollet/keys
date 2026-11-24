@@ -83,6 +83,22 @@ enum Snapshot {
             await draw(DotEnvView(variables: environment.variables, dotEnv: environment.dotEnv) { _ in }.padding(20).frame(width: 640).background(Theme.ink), size: nil, to: folder, name: "variables-dotenv")
             await draw(DotEnvView(variables: environment.variables, dotEnv: environment.dotEnv, startsEditing: true) { _ in }.padding(20).frame(width: 640).background(Theme.ink), size: nil, to: folder, name: "variables-dotenv-editing")
         }
+        await draw(ProjectLookPicker(symbol: .constant("cart"), tint: .constant(.amber), style: .constant(.bold)), size: nil, to: folder, name: "look-picker")
+        let styles = HStack(spacing: 18) {
+            ForEach(Project.IconStyle.allCases) { style in
+                VStack(spacing: 8) {
+                    HStack(spacing: 8) {
+                        ForEach(["cart", "server.rack", "key", "leaf", "gamecontroller"], id: \.self) { symbol in
+                            var project = Project(name: symbol)
+                            let _ = { project.symbol = symbol; project.iconStyle = style; project.tint = .sky }()
+                            ProjectBadge(project: project, size: 34)
+                        }
+                    }
+                    Text(style.label).font(.system(size: 11)).foregroundStyle(Theme.muted)
+                }
+            }
+        }
+        await draw(styles.padding(20).background(Theme.ink), size: nil, to: folder, name: "icon-styles")
         await draw(GeneratorPopover(generator: .constant(PasswordGenerator())) { _ in }, size: nil, to: folder, name: "generator")
         await draw(ExportBackupSheet().environmentObject(vault), size: nil, to: folder, name: "backup-export")
         let sampleBackup = BackupFile(url: URL(fileURLWithPath: "/Users/you/\(VaultBackup.suggestedFileName())"))
