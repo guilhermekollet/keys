@@ -929,3 +929,22 @@ func lastBackupSeconds(storedAs stored: String) -> Double? {
 func dateAt(hour: Int) -> Date {
     Calendar.current.date(bySettingHour: hour, minute: 0, second: 0, of: Date()) ?? Date()
 }
+
+// MARK: Recovery codes
+
+/// An access's codes after a trip through the vault file, as "code:used" or "code:unused".
+func recoveryCodesAfterSaving() -> [String] {
+    var credential = Credential(title: "Mail")
+    credential.recoveryCodes = [RecoveryCode(code: "aaaa1-bbbb2", usedAt: Date()), RecoveryCode(code: "cccc3-dddd4")]
+    var project = Project(name: "Codes")
+    project.credentials = [credential]
+    guard let data = try? Vault.encode(VaultContents(projects: [project])),
+          let read = try? Vault.decode(data).projects.first?.credentials.first else { return ["failed"] }
+    return read.recoveryCodes.map { "\($0.code):\($0.isUsed ? "used" : "unused")" }
+}
+
+/// The codes of an access saved before accesses had any.
+func recoveryCodesFromOldVault() -> [String] {
+    let json = #"{"projects":[{"name":"Old","credentials":[{"title":"Mail","password":"x"}]}]}"#
+    return (try? Vault.decode(Data(json.utf8)))?.projects.first?.credentials.first?.recoveryCodes.map(\.code) ?? ["failed"]
+}

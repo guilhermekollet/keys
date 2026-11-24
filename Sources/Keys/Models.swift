@@ -48,6 +48,36 @@ struct Project: Codable, Identifiable, Hashable {
     }
 }
 
+/// A one-time code that gets back into an account when its usual way in is lost, and when it
+/// was used, if it was: a used code doesn't work again.
+struct RecoveryCode: Codable, Identifiable, Hashable {
+    var id = UUID()
+    var code: String
+    var usedAt: Date?
+
+    var isUsed: Bool { usedAt != nil }
+
+    /// The codes in `text` as services show them: one per line (or separated by commas or
+    /// spaces), each maybe numbered ("1.", "2)", "#3") or bulleted, in order, repeats left out.
+    static func parse(_ text: String) -> [String] {
+        var codes: [String] = []
+        let pieces = text.components(separatedBy: CharacterSet(charactersIn: "\n\r,;\t"))
+        for piece in pieces {
+            var line = piece.trimmingCharacters(in: .whitespaces)
+            // Numbering or a bullet before the code.
+            if let range = line.range(of: #"^(#\d{1,3}[.):]?|\d{1,3}[.):]|[-•*·])\s*"#, options: .regularExpression) {
+                line.removeSubrange(range)
+            }
+            // Several codes on one line, separated by spaces.
+            for word in line.split(whereSeparator: \.isWhitespace) {
+                let code = String(word)
+                if !code.isEmpty, !codes.contains(code) { codes.append(code) }
+            }
+        }
+        return codes
+    }
+}
+
 struct ProjectLink: Codable, Identifiable, Hashable {
     var id = UUID()
     var title = ""
@@ -91,6 +121,8 @@ struct Credential: Codable, Identifiable, Hashable {
     /// When it last moved to another project, so merging a backup knows which place is current.
     /// Nil while it's where it was created.
     var movedAt: Date?
+    /// One-time codes to get back into the account, in the order the service gave them.
+    var recoveryCodes: [RecoveryCode] = []
 
     enum Kind: String, Codable, CaseIterable, Identifiable {
         case website, database, server, apiKey, email, other
@@ -105,7 +137,7 @@ struct Credential: Codable, Identifiable, Hashable {
 
     /// Nothing typed in it yet: a new access closed like this isn't kept.
     var isEmpty: Bool {
-        title.isEmpty && url.isEmpty && username.isEmpty && password.isEmpty && notes.isEmpty
+        title.isEmpty && url.isEmpty && username.isEmpty && password.isEmpty && notes.isEmpty && recoveryCodes.isEmpty
     }
 
     /// The icon shown for this access.
@@ -476,6 +508,15 @@ extension Project {
     }
 }
 
+extension RecoveryCode {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.value(.id, or: UUID())
+        code = try container.value(.code, or: "")
+        usedAt = try container.decodeIfPresent(Date.self, forKey: .usedAt)
+    }
+}
+
 extension ProjectLink {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -517,5 +558,6 @@ extension Credential {
         symbol = try? container.decodeIfPresent(String.self, forKey: .symbol)
         updatedAt = try container.value(.updatedAt, or: Date())
         movedAt = try container.decodeIfPresent(Date.self, forKey: .movedAt)
+        recoveryCodes = try container.value(.recoveryCodes, or: [])
     }
 }

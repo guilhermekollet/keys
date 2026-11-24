@@ -372,3 +372,26 @@
 "Ciência e estudo" = "Science and learning";
 "Lazer e esporte" = "Leisure and sport";
 "Vida e natureza" = "Life and nature";
+
+/* Recovery codes */
+"Códigos de recuperação" = "Recovery codes";
+"%lld de %lld disponíveis" = "%lld of %lld left";
+"Os códigos de uso único que o serviço dá para entrar se você perder a senha ou o segundo fator." = "The one-time codes the service gives to get in if you lose the password or the second factor.";
+"Digitar…" = "Type…";
+"Um por linha. A numeração é ignorada." = "One per line. Numbering is ignored.";
+"Adicionar 1 código" = "Add 1 code";
+"Adicionar %lld códigos" = "Add %lld codes";
+"Adicionar códigos…" = "Add codes…";
+"Copiar os disponíveis" = "Copy the ones left";
+"Apagar todos…" = "Delete all…";
+"Adicionar, copiar ou apagar os códigos" = "Add, copy or delete the codes";
+"Apagar os códigos de recuperação?" = "Delete the recovery codes?";
+"Apagar códigos" = "Delete codes";
+"Eles saem do cofre. Guarde-os em outro lugar antes, se ainda precisar deles." = "They leave the vault. Keep them somewhere else first if you still need them.";
+"Mostrar os códigos" = "Show the codes";
+"Ocultar os códigos" = "Hide the codes";
+"Copiar o código" = "Copy the code";
+"Marcar como usado" = "Mark as used";
+"Marcar como não usado" = "Mark as not used";
+"Código %lld" = "Code %lld";
+"Código %lld, usado" = "Code %lld, used";

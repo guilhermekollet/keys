@@ -196,6 +196,7 @@ struct CredentialEditor: View {
                         .padding(.horizontal, 12)
                         .background(Theme.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
+                    RecoveryCodesSection(codes: $credential.recoveryCodes)
                     section(localized("Notas")) {
                         TextEditor(text: $credential.notes)
                             .font(.system(size: 12.5))
@@ -224,6 +225,7 @@ struct CredentialEditor: View {
         .foregroundStyle(Theme.paper)
         .tint(Theme.accent)
         .onChange(of: credential.password) { credential.updatedAt = Date() }
+        .onChange(of: credential.recoveryCodes) { credential.updatedAt = Date() }
     }
 
     /// The address, when it is a page the browser can open.
@@ -468,5 +470,193 @@ struct GeneratorPopover: View {
         .keysSurface()
         .onAppear { preview = generator.generate() }
         .onChange(of: generator) { preview = generator.generate() }
+    }
+}
+
+/// An access's recovery codes: masked until asked, each copied on its own and marked once used,
+/// with how many are left. Added by pasting the list the service gave, numbering and all.
+struct RecoveryCodesSection: View {
+    @Binding var codes: [RecoveryCode]
+    @State private var revealed = false
+    @State private var adding = false
+    @State private var draft = ""
+    @State private var confirmingDelete = false
+
+    /// The same mask for every code, so the screen doesn't tell how long they are.
+    static let mask = "•••••-•••••"
+
+    private var available: Int { codes.filter { !$0.isUsed }.count }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            header
+            if adding {
+                editor
+            } else if codes.isEmpty {
+                empty
+            } else {
+                list
+            }
+        }
+        .confirmationDialog(localized("Apagar os códigos de recuperação?"), isPresented: $confirmingDelete) {
+            Button(localized("Apagar códigos"), role: .destructive) { codes = [] }
+        } message: {
+            Text(localized("Eles saem do cofre. Guarde-os em outro lugar antes, se ainda precisar deles."))
+        }
+    }
+
+    private var header: some View {
+        HStack(spacing: 6) {
+            Text(localized("Códigos de recuperação"))
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Theme.muted)
+            if !codes.isEmpty {
+                Text(localized("\(available) de \(codes.count) disponíveis"))
+                    .font(.system(size: 11).monospacedDigit())
+                    .foregroundStyle(available == 0 ? Theme.color(.amber) : Theme.paper.opacity(0.45))
+            }
+            Spacer(minLength: 4)
+            if !codes.isEmpty && !adding {
+                IconButton(symbol: revealed ? "eye.slash" : "eye", help: revealed ? localized("Ocultar os códigos") : localized("Mostrar os códigos")) {
+                    revealed.toggle()
+                }
+                Menu {
+                    Button(localized("Adicionar códigos…")) { startAdding() }
+                    Button(localized("Copiar os disponíveis")) {
+                        Clipboard.copy(codes.filter { !$0.isUsed }.map(\.code).joined(separator: "\n"), secret: true)
+                    }
+                    .disabled(available == 0)
+                    Divider()
+                    Button(localized("Apagar todos…"), role: .destructive) { confirmingDelete = true }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 11, weight: .medium))
+                        .frame(width: 24, height: 24)
+                        .contentShape(Circle())
+                }
+                .menuStyle(.button)
+                .buttonStyle(.plain)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help(localized("Adicionar, copiar ou apagar os códigos"))
+            }
+        }
+        .padding(.leading, 2)
+    }
+
+    private var empty: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(localized("Os códigos de uso único que o serviço dá para entrar se você perder a senha ou o segundo fator."))
+                .font(.system(size: 11.5))
+                .foregroundStyle(Theme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 6) {
+                Button(localized("Colar da área de transferência")) {
+                    let pasted = RecoveryCode.parse(NSPasteboard.general.string(forType: .string) ?? "")
+                    if pasted.isEmpty { startAdding() } else { add(pasted) }
+                }
+                .buttonStyle(PillButtonStyle(prominent: false))
+                Button(localized("Digitar…"), action: startAdding)
+                    .buttonStyle(PillButtonStyle(prominent: false))
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Theme.paper.opacity(0.14), style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+    }
+
+    private var editor: some View {
+        let found = RecoveryCode.parse(draft)
+        return VStack(alignment: .leading, spacing: 8) {
+            TextEditor(text: $draft)
+                .font(.system(size: 12.5, design: .monospaced))
+                .scrollContentBackground(.hidden)
+                .autocorrectionDisabled()
+                .padding(6)
+                .frame(height: 120)
+                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            HStack(spacing: 8) {
+                Text(localized("Um por linha. A numeração é ignorada."))
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.muted)
+                Spacer(minLength: 4)
+                Button(localized("Cancelar")) { adding = false }
+                    .buttonStyle(PillButtonStyle(prominent: false))
+                    .keyboardShortcut(.cancelAction)
+                Button(found.count == 1 ? localized("Adicionar 1 código") : localized("Adicionar \(found.count) códigos")) {
+                    add(found)
+                }
+                .buttonStyle(PillButtonStyle())
+                .disabled(found.isEmpty)
+            }
+        }
+    }
+
+    private var list: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(codes.enumerated()), id: \.element.id) { index, code in
+                if index > 0 { RowDivider() }
+                RecoveryCodeRow(
+                    number: index + 1,
+                    code: code,
+                    revealed: revealed,
+                    toggleUsed: { setUsed(code.id, !code.isUsed) }
+                )
+            }
+        }
+        .padding(.horizontal, 12)
+        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private func startAdding() {
+        draft = ""
+        adding = true
+    }
+
+    /// Adds the codes not already here, after the others.
+    private func add(_ new: [String]) {
+        let known = Set(codes.map(\.code))
+        codes += new.filter { !known.contains($0) }.map { RecoveryCode(code: $0) }
+        adding = false
+    }
+
+    private func setUsed(_ id: RecoveryCode.ID, _ used: Bool) {
+        guard let index = codes.firstIndex(where: { $0.id == id }) else { return }
+        codes[index].usedAt = used ? Date() : nil
+    }
+}
+
+struct RecoveryCodeRow: View {
+    let number: Int
+    let code: RecoveryCode
+    let revealed: Bool
+    let toggleUsed: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text("\(number)")
+                .font(.system(size: 11).monospacedDigit())
+                .foregroundStyle(Theme.paper.opacity(0.3))
+                .frame(width: 18, alignment: .trailing)
+            Text(revealed ? code.code : RecoveryCodesSection.mask)
+                .font(.system(size: 12.5, design: .monospaced))
+                .strikethrough(code.isUsed)
+                .foregroundStyle(Theme.paper.opacity(code.isUsed ? 0.35 : (revealed ? 0.95 : 0.5)))
+                .textSelection(.enabled)
+                .lineLimit(1)
+            Spacer(minLength: 4)
+            if !code.isUsed {
+                CopyButton(value: code.code, secret: true, help: localized("Copiar o código"))
+            }
+            IconButton(
+                symbol: code.isUsed ? "checkmark.circle.fill" : "circle",
+                help: code.isUsed ? localized("Marcar como não usado") : localized("Marcar como usado"),
+                color: code.isUsed ? Theme.paper.opacity(0.45) : Theme.paper.opacity(0.7),
+                action: toggleUsed
+            )
+        }
+        .frame(minHeight: 32)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(code.isUsed ? localized("Código \(number), usado") : localized("Código \(number)"))
     }
 }
