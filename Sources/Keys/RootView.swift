@@ -188,6 +188,9 @@ struct MainView: View {
     @State private var searchOpen = false
     @FocusState private var searchFocused: Bool
     @State private var deleting: Project.ID?
+    /// The project being dragged in the sidebar, and where it would land.
+    @State private var dragging: Project.ID?
+    @State private var dropMark: SidebarDropMark?
     /// Projects whose subprojects show in the sidebar. Every group starts folded, so the list
     /// opens short; the open project's groups unfold to show it (see `reveal`).
     @State private var unfolded: Set<Project.ID> = []
@@ -287,14 +290,12 @@ struct MainView: View {
     /// The projects in the order the sidebar shows them, for moving with the arrow keys.
     private var visibleOrder: [Project.ID] {
         guard Search.words(query).isEmpty else { return searchResults.map(\.id) }
-        var order: [Project.ID] = []
-        func walk(_ project: Project, archived: Bool) {
-            order.append(project.id)
-            guard unfolded.contains(project.id) else { return }
-            ProjectTree.children(of: project.id, in: vault.projects).filter { $0.isArchived == archived }.forEach { walk($0, archived: archived) }
-        }
-        ProjectTree.roots(archived: false, in: vault.projects).forEach { walk($0, archived: false) }
-        return order
+        return sidebarRows.map(\.id)
+    }
+
+    /// The tree as the sidebar shows it, a line per project in use.
+    private var sidebarRows: [ProjectTree.Row] {
+        ProjectTree.visibleRows(unfolded: unfolded, in: vault.projects)
     }
 
     private var searchResults: [Project] {
@@ -480,8 +481,22 @@ struct MainView: View {
                 HomeRow()
                 // The projects in use, as a tree. Archived ones aren't here at all: they live in
                 // Settings › Archived, out of the way.
-                ForEach(ProjectTree.roots(archived: false, in: vault.projects)) { project in
-                    ProjectTreeRow(project: project, archived: false, unfolded: $unfolded, actions: rowActions)
+                // One line per visible project. A line held and dragged drops before or after
+                // another among the projects beside it; the order is kept in the vault.
+                ForEach(sidebarRows) { row in
+                    SidebarTreeRow(row: row, unfolded: $unfolded, dropMark: dropMark?.id == row.id ? dropMark : nil)
+                        .contextMenu { rowActions(row.project) }
+                        .onDrag {
+                            dragging = row.id
+                            return NSItemProvider(object: row.id.uuidString as NSString)
+                        } preview: {
+                            ProjectRow(project: row.project).frame(width: 220)
+                        }
+                        .onDrop(of: [.text], delegate: SidebarDropDelegate(row: row, rows: sidebarRows, dragging: $dragging, mark: $dropMark) { from, to in
+                            withAnimation(.easeInOut(duration: 0.18)) {
+                                vault.projects = ProjectTree.moving(from, to: to, in: sidebarRows, projects: vault.projects)
+                            }
+                        })
                 }
             } else {
                 // A search shows what matched as a flat list, each with the path to it.
@@ -545,36 +560,77 @@ struct MainView: View {
 }
 
 /// A project in the sidebar and, under a disclosure triangle, the projects inside it.
-struct ProjectTreeRow<Actions: View>: View {
-    let project: Project
-    /// Which of the sidebar's lists the row is in: its subprojects shown are those on that side.
-    let archived: Bool
-    /// The projects above it, for a row that heads its list without its parent (see `roots`).
-    var path: [String] = []
-    /// How deep in the tree the row is: each level indents it a little.
-    var depth = 0
+/// A line of the sidebar's tree: the project, indented by its depth, with the chevron that shows
+/// or hides its subprojects.
+struct SidebarTreeRow: View {
+    let row: ProjectTree.Row
     @Binding var unfolded: Set<Project.ID>
-    let actions: (Project) -> Actions
-    @EnvironmentObject private var vault: Vault
+    /// Where a dragged project would land against this line, drawn as a line above or below it.
+    var dropMark: SidebarDropMark?
 
     var body: some View {
-        // Rows of their own rather than a DisclosureGroup: the system's disclosure triangle made
-        // the list keep an empty column on the left of every row, groups or not.
-        let children = ProjectTree.children(of: project.id, in: vault.projects).filter { $0.isArchived == archived }
-        let expanded = unfolded.contains(project.id)
-        SelectableProjectRow(project: project, path: path, expanded: children.isEmpty ? nil : expanded) {
+        let expanded = unfolded.contains(row.id)
+        SelectableProjectRow(project: row.project, expanded: row.hasChildren ? expanded : nil) {
             withAnimation(.easeInOut(duration: 0.18)) {
-                if expanded { unfolded.remove(project.id) } else { unfolded.insert(project.id) }
+                if expanded { unfolded.remove(row.id) } else { unfolded.insert(row.id) }
             }
         }
-        .padding(.leading, CGFloat(depth) * 16)
-        .contextMenu { actions(project) }
-        if expanded {
-            ForEach(children) { child in
-                // Type-erased: the row contains rows of its own type.
-                AnyView(ProjectTreeRow(project: child, archived: archived, depth: depth + 1, unfolded: $unfolded, actions: actions))
+        .padding(.leading, CGFloat(row.depth) * 16)
+        .overlay(alignment: dropMark?.below == true ? .bottom : .top) {
+            if dropMark != nil {
+                Capsule()
+                    .fill(Theme.paper.opacity(0.8))
+                    .frame(height: 2)
+                    .padding(.leading, CGFloat(row.depth) * 16 + 6)
+                    .offset(y: dropMark?.below == true ? 2 : -2)
+                    .allowsHitTesting(false)
             }
         }
+    }
+}
+
+/// A line of the sidebar, and whether a dragged project would land below it rather than above.
+struct SidebarDropMark: Equatable {
+    let id: Project.ID
+    let below: Bool
+}
+
+/// Takes a project dragged in the sidebar: it shows where it would land as the pointer moves over
+/// a line (above it in its upper half, below in its lower half), and drops it there.
+struct SidebarDropDelegate: DropDelegate {
+    let row: ProjectTree.Row
+    let rows: [ProjectTree.Row]
+    @Binding var dragging: Project.ID?
+    @Binding var mark: SidebarDropMark?
+    let move: (Int, Int) -> Void
+    /// A line's height in the sidebar, near enough to tell its halves apart.
+    private let height: CGFloat = 46
+
+    func validateDrop(info: DropInfo) -> Bool { dragging != nil }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        guard let dragging, dragging != row.id else {
+            mark = nil
+            return DropProposal(operation: .move)
+        }
+        mark = SidebarDropMark(id: row.id, below: info.location.y > height / 2)
+        return DropProposal(operation: .move)
+    }
+
+    func dropExited(info: DropInfo) {
+        if mark?.id == row.id { mark = nil }
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        defer {
+            dragging = nil
+            mark = nil
+        }
+        guard let dragging, dragging != row.id,
+              let from = rows.firstIndex(where: { $0.id == dragging }),
+              let target = rows.firstIndex(where: { $0.id == row.id }) else { return false }
+        move(from, info.location.y > height / 2 ? target + 1 : target)
+        return true
     }
 }
 
@@ -629,7 +685,7 @@ struct HomeRow: View {
             vault.selection = nil
         } label: {
             HStack(spacing: 11) {
-                Image(systemName: "square.grid.2x2")
+                Image(systemName: "house.fill")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(Theme.paper.opacity(0.8))
                     .frame(width: 32, height: 32)

@@ -973,3 +973,15 @@ func afterDeletingAndPuttingBack() -> String {
     return [p.credentials.map(\.title), p.environments[0].variables.map(\.key), p.links.map(\.title)]
         .map { $0.joined(separator: ",") }.joined(separator: "|")
 }
+
+// MARK: The sidebar's order
+
+/// Projects' positions after a trip through the vault file, as "name:position" or "name:none".
+func positionsAfterSaving() -> [String] {
+    var a = Project(name: "A"); a.position = 1
+    var b = Project(name: "B"); b.position = 0
+    let c = Project(name: "C")
+    guard let data = try? Vault.encode(VaultContents(projects: [b, a, c])),
+          let read = try? Vault.decode(data).projects else { return ["failed"] }
+    return read.map { "\($0.name):\($0.position.map { "\($0)" } ?? "none")" }
+}
