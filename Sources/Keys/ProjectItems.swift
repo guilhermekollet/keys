@@ -191,7 +191,7 @@ struct ProjectItemsView: View {
                                 ForEach(links) { link in
                                     if link.id != links.first?.id { RowDivider() }
                                     if let binding = linkBinding(link.id) {
-                                        LinkRow(link: binding) { project.links.removeAll { $0.id == link.id } }
+                                        LinkRow(link: binding) { removeLink(link.id) }
                                     }
                                 }
                             }
@@ -257,6 +257,16 @@ struct ProjectItemsView: View {
     private func newLink() {
         project.links.append(ProjectLink())
         reveal(.links)
+    }
+
+    /// Takes a link out, with a way to put it back for a few seconds.
+    private func removeLink(_ id: ProjectLink.ID) {
+        guard let index = project.links.firstIndex(where: { $0.id == id }) else { return }
+        let gone = project.links.remove(at: index)
+        let projectID = project.id
+        Toaster.shared.deleted(localized("Link apagado")) {
+            vault.restoreLink(gone, at: index, in: projectID)
+        }
     }
 
     // MARK: Bindings

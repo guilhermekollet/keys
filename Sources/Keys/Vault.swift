@@ -47,6 +47,12 @@ final class Vault: ObservableObject {
     var hasUnsavedEdits: Bool { unsaved != nil }
     /// The last thing that went wrong, shown until the next attempt.
     @Published var problem: String?
+    /// How the last edits fared, for the title bar (see SaveStatusView).
+    @Published private(set) var saveStatus = SaveStatus.idle
+
+    enum SaveStatus: Equatable {
+        case idle, saving, saved, failed
+    }
     /// The lock screen asks for Touch ID by itself once per launch; after a lock it waits for a click.
     var askedOnLaunch = false
     /// `--sample` (and `--snapshot`) open a made-up vault in memory, for screenshots and UI work.
@@ -305,6 +311,7 @@ final class Vault: ObservableObject {
     // MARK: Saving
 
     private func scheduleSave() {
+        if !isSample { saveStatus = .saving }
         pendingSave?.cancel()
         pendingSave = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(500))
@@ -335,6 +342,7 @@ final class Vault: ObservableObject {
                 close()
             }
             saveFailed = false
+            saveStatus = .saved
             return true
         } catch {
             reportFailedSave(error)
@@ -344,6 +352,7 @@ final class Vault: ObservableObject {
 
     private func reportFailedSave(_ error: Error) {
         saveFailed = true
+        saveStatus = .failed
         problem = localized("Não foi possível salvar o cofre: \(error.localizedDescription)")
     }
 
@@ -526,6 +535,33 @@ final class Vault: ObservableObject {
     /// Moves an access to another project in a single change, so no save catches it in both or in neither.
     func moveCredential(_ id: Credential.ID, from source: Project.ID, to destination: Project.ID) {
         projects = projects.movingCredential(id, from: source, to: destination, at: Date())
+    }
+
+    // MARK: Putting back
+
+    /// Puts back an access deleted from the project with `projectID`, where it was.
+    func restoreCredential(_ credential: Credential, at index: Int, in projectID: Project.ID) {
+        guard let p = projects.firstIndex(where: { $0.id == projectID }),
+              !projects[p].credentials.contains(where: { $0.id == credential.id }) else { return }
+        projects[p].credentials.insert(credential, at: min(index, projects[p].credentials.count))
+        projects[p].updatedAt = Date()
+    }
+
+    /// Puts back a variable deleted from an environment, where it was.
+    func restoreVariable(_ variable: Variable, at index: Int, in environmentID: EnvironmentSet.ID, of projectID: Project.ID) {
+        guard let p = projects.firstIndex(where: { $0.id == projectID }),
+              let e = projects[p].environments.firstIndex(where: { $0.id == environmentID }),
+              !projects[p].environments[e].variables.contains(where: { $0.id == variable.id }) else { return }
+        projects[p].environments[e].variables.insert(variable, at: min(index, projects[p].environments[e].variables.count))
+        projects[p].updatedAt = Date()
+    }
+
+    /// Puts back a link deleted from a project, where it was.
+    func restoreLink(_ link: ProjectLink, at index: Int, in projectID: Project.ID) {
+        guard let p = projects.firstIndex(where: { $0.id == projectID }),
+              !projects[p].links.contains(where: { $0.id == link.id }) else { return }
+        projects[p].links.insert(link, at: min(index, projects[p].links.count))
+        projects[p].updatedAt = Date()
     }
 
     func project(_ id: Project.ID?) -> Project? {

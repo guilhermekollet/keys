@@ -20,6 +20,7 @@ enum Clipboard {
         }
         clearing?.cancel()
         let seconds = Preferences.clipboardSeconds
+        Toaster.shared.copied(clearsAfter: secret && seconds > 0 ? seconds : nil)
         guard secret, seconds > 0 else { return }
         let copied = board.changeCount
         clearing = Task {

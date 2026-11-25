@@ -179,7 +179,7 @@ struct CredentialEditor: View {
                                 .textFieldStyle(.plain)
                                 .font(.system(size: 12.5, design: .monospaced))
                                 IconButton(symbol: revealed ? "eye.slash" : "eye", help: revealed ? localized("Ocultar") : localized("Mostrar")) {
-                                    revealed.toggle()
+                                    withAnimation(.easeOut(duration: 0.15)) { revealed.toggle() }
                                 }
                                 IconButton(symbol: "wand.and.stars", help: localized("Gerar senha"), color: Theme.accent) {
                                     showsGenerator.toggle()
@@ -513,12 +513,13 @@ struct RecoveryCodesSection: View {
             if !codes.isEmpty {
                 Text(localized("\(available) de \(codes.count) disponíveis"))
                     .font(.system(size: 11).monospacedDigit())
+                    .contentTransition(.numericText(value: Double(available)))
                     .foregroundStyle(available == 0 ? Theme.color(.amber) : Theme.paper.opacity(0.45))
             }
             Spacer(minLength: 4)
             if !codes.isEmpty && !adding {
                 IconButton(symbol: revealed ? "eye.slash" : "eye", help: revealed ? localized("Ocultar os códigos") : localized("Mostrar os códigos")) {
-                    revealed.toggle()
+                    withAnimation(.easeOut(duration: 0.15)) { revealed.toggle() }
                 }
                 Menu {
                     Button(localized("Adicionar códigos…")) { startAdding() }
@@ -622,7 +623,9 @@ struct RecoveryCodesSection: View {
 
     private func setUsed(_ id: RecoveryCode.ID, _ used: Bool) {
         guard let index = codes.firstIndex(where: { $0.id == id }) else { return }
-        codes[index].usedAt = used ? Date() : nil
+        withAnimation(.easeOut(duration: 0.2)) {
+            codes[index].usedAt = used ? Date() : nil
+        }
     }
 }
 
@@ -640,6 +643,7 @@ struct RecoveryCodeRow: View {
                 .frame(width: 18, alignment: .trailing)
             Text(revealed ? code.code : RecoveryCodesSection.mask)
                 .font(.system(size: 12.5, design: .monospaced))
+                .contentTransition(.opacity)
                 .strikethrough(code.isUsed)
                 .foregroundStyle(Theme.paper.opacity(code.isUsed ? 0.35 : (revealed ? 0.95 : 0.5)))
                 .textSelection(.enabled)

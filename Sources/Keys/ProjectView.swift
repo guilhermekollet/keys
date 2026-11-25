@@ -77,7 +77,13 @@ struct ProjectView: View {
         ) {
             Button(localized("Apagar acesso"), role: .destructive) {
                 if editing == deletingCredential { editing = nil }
-                project.credentials.removeAll { $0.id == deletingCredential }
+                if let index = project.credentials.firstIndex(where: { $0.id == deletingCredential }) {
+                    let gone = project.credentials.remove(at: index)
+                    let projectID = project.id
+                    Toaster.shared.deleted(localized("Acesso apagado")) {
+                        vault.restoreCredential(gone, at: index, in: projectID)
+                    }
+                }
             }
         }
         .navigationTitle(project.name)

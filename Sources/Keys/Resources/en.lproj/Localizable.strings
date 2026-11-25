@@ -395,3 +395,14 @@
 "Marcar como não usado" = "Mark as not used";
 "Código %lld" = "Code %lld";
 "Código %lld, usado" = "Code %lld, used";
+
+/* Feedback after an action */
+"Copiado. Sai da área de transferência em %lld s." = "Copied. Leaves the clipboard in %lld s.";
+"Desfazer" = "Undo";
+"Acesso apagado" = "Access deleted";
+"Variável apagada" = "Variable deleted";
+"Link apagado" = "Link deleted";
+"Salvando…" = "Saving…";
+"Salvo" = "Saved";
+"Não salvo" = "Not saved";
+"O cofre não pôde ser salvo." = "The vault couldn't be saved.";
