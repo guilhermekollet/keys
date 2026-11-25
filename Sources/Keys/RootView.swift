@@ -680,7 +680,7 @@ struct HomeRow: View {
             vault.selection = nil
         } label: {
             HStack(spacing: 11) {
-                Image(systemName: "square.grid.2x2")
+                Image(systemName: "house.fill")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(Theme.paper.opacity(0.8))
                     .frame(width: 32, height: 32)
